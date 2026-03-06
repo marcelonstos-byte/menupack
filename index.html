@@ -638,30 +638,42 @@
             }
         }
 
-        async function publicarNaPlaylist() {
-            if (!appState.currentUser) return alert("Faça login primeiro!");
-            const salvo = await salvarRascunho();
-            if (!salvo) return;
-            try {
-                const totalDur = appState.slides.reduce((t, s) => t + (parseInt(s.duracao) || 10), 0);
-                const novaMidia = {
-                    nome: "Menu Digital - " + new Date().toLocaleTimeString(),
-                    url: `https://marcelonstos-byte.github.io/menupack/?id=${appState.deviceId}&owner=${appState.ownerUid}`,
-                    tipo: "Menu",
-                    duracao: totalDur,
-                    ativo: true,
-                    timestamp: new Date().toISOString()
-                };
-                const ref = db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}`);
-                await ref.update({
-                    midias: firebase.firestore.FieldValue.arrayUnion(novaMidia),
-                    lastActive: new Date().toISOString()
-                });
-                alert("🚀 Publicado na TV!");
-            } catch (e) {
-                alert("Erro ao publicar: " + e.message);
-            }
-        }
+       async function publicarNaPlaylist() {
+    if (!appState.currentUser) return alert("Faça login primeiro!");
+
+    // 1. Salva o rascunho antes para garantir que a TV pegue a versão mais recente
+    const salvo = await salvarRascunho();
+    if (!salvo) return;
+
+    try {
+        // Calcula a duração total somando todos os slides
+        const totalDur = appState.slides.reduce((t, s) => t + (parseInt(s.duracao) || 10), 0);
+
+        const novaMidia = {
+            nome: "Menu Digital - " + new Date().toLocaleTimeString(),
+            // URL simplificada apenas com o ID do dispositivo
+            url: `https://marcelonstos-byte.github.io/menupack/?id=${appState.deviceId}`,
+            tipo: "Menu",
+            duracao: totalDur,
+            ativo: true,
+            timestamp: new Date().toISOString()
+        };
+
+        // Referência do documento do dispositivo no Firestore
+        const ref = db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}`);
+
+        // Atualiza o array de mídias na playlist da TV
+        await ref.update({
+            midias: firebase.firestore.FieldValue.arrayUnion(novaMidia),
+            lastActive: new Date().toISOString()
+        });
+
+        alert("🚀 Publicado na TV com sucesso!");
+    } catch (e) {
+        console.error("Erro ao publicar:", e);
+        alert("Erro ao publicar: " + e.message);
+    }
+}
 
         function renderAdmin() {
             const s = appState.slides[appState.currentSlide];
