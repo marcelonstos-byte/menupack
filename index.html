@@ -465,19 +465,30 @@
             currentSlide: 0,
             activeItemIdx: 0,
             autoSaveTimer: null,
-            slides: [{
-                nome: "Menu Principal",
+            isEditor: true, // Define se está em modo edição
+            slides: []
+        };
+
+        // Template padrão unificado com os novos campos
+        function getDefaultTemplate() {
+            return {
+                nome: "NOVO SLIDE",
                 duracao: 15,
                 orientation: "landscape",
-                logo: "https://cdn-icons-png.flaticon.com/512/732/732217.png",
+                bg: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=1920",
+                logo_url: "https://cdn-icons-png.flaticon.com/512/732/732217.png",
                 title: "MENU ESPECIAL",
                 desc: "Confira nossas ofertas",
-                bg: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=1920",
+                preco: "19,90",
+                url: "", // URL da imagem do produto em destaque
+                dark_intensity: 0.4,
+                anim_type: "anim-fade-in",
                 scales: {
                     logo: 1,
                     header: 1,
                     img: 1,
-                    lista: 1
+                    lista: 1,
+                    v_prod: 1
                 },
                 pos: {
                     lista: {
@@ -495,6 +506,10 @@
                     header: {
                         x: 250,
                         y: 40
+                    },
+                    v_prod: {
+                        x: 1000,
+                        y: 100
                     }
                 },
                 lista: [{
@@ -502,22 +517,42 @@
                     preco: "35,00",
                     img: ""
                 }]
-            }]
-        };
+            };
+        }
 
         async function init() {
             document.getElementById('display-device-id').innerText = appState.deviceId;
-            if (appState.ownerUid) {
-                db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}/MenuPack/data`)
-                    .get().then(doc => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            if (data.slides) appState.slides = data.slides;
-                            loadSlide(0);
-                        }
-                    });
+
+            try {
+                // Tenta localizar o dono do dispositivo automaticamente
+                const snap = await db.collectionGroup('dispositivos').get();
+                const deviceDoc = snap.docs.find(d => d.id === appState.deviceId);
+
+                if (deviceDoc) {
+                    appState.ownerUid = deviceDoc.ref.parent.parent.id;
+
+                    // Listener em tempo real para os dados do menu
+                    db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}/MenuPack/data`)
+                        .onSnapshot(doc => {
+                            if (doc.exists) {
+                                const data = doc.data();
+                                if (data.slides && data.slides.length > 0) {
+                                    appState.slides = data.slides;
+                                }
+                            } else if (appState.slides.length === 0) {
+                                appState.slides = [getDefaultTemplate()];
+                            }
+                            loadSlide(appState.currentSlide);
+                        });
+                } else {
+                    console.error("Dispositivo não encontrado no banco de dados.");
+                    if (appState.slides.length === 0) appState.slides = [getDefaultTemplate()];
+                    loadSlide(0);
+                }
+            } catch (error) {
+                console.error("Erro no init:", error);
             }
-            loadSlide(0);
+
             applyScaling();
             window.addEventListener('resize', applyScaling);
         }
@@ -525,55 +560,82 @@
         // --- ROTAÇÃO DE DESTAQUE ---
         setInterval(() => {
             const s = appState.slides[appState.currentSlide];
-            if (s && s.lista && s.lista.length > 0) {
+            if (s && s.lista && s.lista.length > 1) {
                 appState.activeItemIdx = (appState.activeItemIdx + 1) % s.lista.length;
                 updateHighlight();
             }
         }, 5000);
 
         function loadSlide(idx) {
+            if (idx >= appState.slides.length) idx = 0;
             appState.currentSlide = idx;
             const s = appState.slides[idx];
             if (!s) return;
 
-            document.getElementById('in-bg').value = s.bg;
-            document.getElementById('in-logo').value = s.logo;
-            document.getElementById('in-title').value = s.title;
-            document.getElementById('in-desc').value = s.desc;
-            document.getElementById('in-orientation').value = s.orientation;
-            document.getElementById('in-duration').value = s.duracao || 15;
+            // Atualiza inputs do painel (se existirem)
+            const inputs = {
+                'in-bg': s.bg,
+                'in-logo': s.logo_url,
+                'in-title': s.title,
+                'in-desc': s.desc,
+                'in-orientation': s.orientation,
+                'in-duration': s.duracao || 15,
+                'sc-logo': s.scales.logo,
+                'sc-header': s.scales.header,
+                'sc-lista': s.scales.lista
+            };
 
-            // Atualizar Sliders de escala
-            document.getElementById('sc-logo').value = s.scales.logo;
-            document.getElementById('sc-header').value = s.scales.header;
-            document.getElementById('sc-lista').value = s.scales.lista;
+            for (let id in inputs) {
+                const el = document.getElementById(id);
+                if (el) el.value = inputs[id];
+            }
 
             updateOrientation(s.orientation);
             render();
-            renderAdmin();
-            renderSlideNav();
+            if (typeof renderAdmin === "function") renderAdmin();
+            if (typeof renderSlideNav === "function") renderSlideNav();
             applyPositionsAndScales();
         }
 
         function render() {
             const s = appState.slides[appState.currentSlide];
-            document.getElementById('canvas').style.backgroundImage = `url('${s.bg}')`;
-            document.getElementById('logo-preview').src = s.logo;
-            document.getElementById('view-title').innerText = s.title;
-            document.getElementById('view-desc').innerText = s.desc;
+            if (!s) return;
 
+            const canvas = document.getElementById('canvas');
+            canvas.style.backgroundImage = s.bg ? `url('${s.bg}')` : 'none';
+
+            // Overlay escuro (se houver o elemento)
+            const overlay = document.getElementById('dark-overlay');
+            if (overlay) overlay.style.opacity = s.dark_intensity || 0;
+
+            // Textos e Imagens principais
+            const logo = document.getElementById('logo-preview');
+            if (logo) logo.src = s.logo_url || '';
+
+            const title = document.getElementById('view-title');
+            if (title) title.innerText = s.title || '';
+
+            const desc = document.getElementById('view-desc');
+            if (desc) desc.innerText = s.desc || '';
+
+            // Renderização da Lista
             const list = document.getElementById('items-render');
-            list.innerHTML = s.lista.map(item => `
-                <div class="menu-item">
-                    <span class="item-nome">${item.nome}</span>
-                    <span class="item-preco">R$ ${item.preco}</span>
-                </div>
-            `).join('');
+            if (list && s.lista) {
+                list.innerHTML = s.lista.map(item => `
+                    <div class="menu-item">
+                        <span class="item-nome">${item.nome}</span>
+                        <span class="item-preco">R$ ${item.preco}</span>
+                    </div>
+                `).join('');
+            }
+
             updateHighlight();
         }
 
         function applyPositionsAndScales() {
             const s = appState.slides[appState.currentSlide];
+            if (!s) return;
+
             document.querySelectorAll('.draggable').forEach(el => {
                 const key = el.getAttribute('data-key');
                 const p = s.pos[key] || {
@@ -581,9 +643,17 @@
                     y: 0
                 };
                 const scale = s.scales[key] || 1;
+
                 el.style.transform = `translate(${p.x}px, ${p.y}px) scale(${scale})`;
                 el.setAttribute('data-x', p.x);
                 el.setAttribute('data-y', p.y);
+
+                // Aplica animação se não estiver no editor
+                if (!appState.isEditor) {
+                    el.classList.remove('anim-fade-in', 'anim-slide-up', 'anim-zoom-in');
+                    void el.offsetWidth; // Trigger reflow
+                    el.classList.add(s.anim_type || 'anim-fade-in');
+                }
             });
         }
 
@@ -618,13 +688,19 @@
         }
 
         function updateBase(f, v) {
-            appState.slides[appState.currentSlide][f] = v;
+            // Mapeamento para suportar nomes de campos antigos e novos
+            const fieldMap = {
+                'logo': 'logo_url'
+            };
+            const field = fieldMap[f] || f;
+
+            appState.slides[appState.currentSlide][field] = v;
             render();
             triggerAutoSave();
         }
 
         function updateScale(key, val) {
-            appState.slides[appState.currentSlide].scales[key] = val;
+            appState.slides[appState.currentSlide].scales[key] = parseFloat(val);
             applyPositionsAndScales();
             triggerAutoSave();
         }
@@ -638,8 +714,9 @@
         function applyScaling() {
             const region = document.getElementById('editor-region');
             const canvas = document.getElementById('canvas');
-            const isAdminVisible = !document.getElementById('admin-panel').classList.contains('hidden');
+            if (!canvas || !region) return;
 
+            const isAdminVisible = !document.getElementById('admin-panel').classList.contains('hidden');
             const availableWidth = isAdminVisible ? region.offsetWidth : window.innerWidth;
             const availableHeight = window.innerHeight;
 
@@ -648,9 +725,9 @@
         }
 
         async function salvarRascunho(isAuto = false) {
-            if (!appState.currentUser) return;
+            if (!appState.currentUser || !appState.ownerUid) return;
             const btn = document.getElementById('btn-sync');
-            if (!isAuto) btn.innerText = "⏳ Salvando...";
+            if (!isAuto && btn) btn.innerText = "⏳ Salvando...";
 
             const path = `usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}/MenuPack/data`;
             try {
@@ -660,7 +737,8 @@
                 }, {
                     merge: true
                 });
-                if (!isAuto) {
+
+                if (!isAuto && btn) {
                     btn.innerText = "Sincronizar Nuvem";
                     alert("✅ Sincronizado com a Nuvem!");
                 }
@@ -717,6 +795,8 @@
         function renderAdmin() {
             const s = appState.slides[appState.currentSlide];
             const div = document.getElementById('admin-items-list');
+            if (!div) return;
+
             div.innerHTML = s.lista.map((item, i) => `
                 <div class="input-group">
                     <input type="text" value="${item.nome}" oninput="updateItem(${i}, 'nome', this.value)" placeholder="Nome">
@@ -770,6 +850,7 @@
 
         function renderSlideNav() {
             const nav = document.getElementById('slide-nav');
+            if (!nav) return;
             nav.innerHTML = appState.slides.map((_, i) => `
                 <div class="slide-thumb ${i === appState.currentSlide ? 'active' : ''}" onclick="loadSlide(${i})">Slide ${i+1}</div>
             `).join('');
@@ -797,12 +878,15 @@
 
             if (appState.activeItemIdx >= s.lista.length) appState.activeItemIdx = 0;
 
-            h.style.transform = `translateY(${appState.activeItemIdx * 72}px)`;
-            img.style.opacity = '0';
-            setTimeout(() => {
-                img.src = s.lista[appState.activeItemIdx].img || 'https://placehold.co/400x400/2a2a2a/ffffff?text=Sem+Imagem';
-                img.style.opacity = '1';
-            }, 300);
+            if (h) h.style.transform = `translateY(${appState.activeItemIdx * 72}px)`;
+
+            if (img) {
+                img.style.opacity = '0';
+                setTimeout(() => {
+                    img.src = s.lista[appState.activeItemIdx].img || 'https://placehold.co/400x400/2a2a2a/ffffff?text=Sem+Imagem';
+                    img.style.opacity = '1';
+                }, 300);
+            }
         }
 
         function changeDevicePrompt() {
@@ -821,11 +905,18 @@
 
         auth.onAuthStateChanged(user => {
             appState.currentUser = user;
-            appState.ownerUid = user ? user.uid : null;
-            document.getElementById('status-dot').classList.toggle('online', !!user);
-            document.getElementById('user-display').innerText = user ? user.email : "Desconectado";
-            document.getElementById('auth-btn').innerText = user ? "Sair" : "Login";
-            if (user) init();
+            if (user) appState.ownerUid = user.uid;
+
+            const dot = document.getElementById('status-dot');
+            if (dot) dot.classList.toggle('online', !!user);
+
+            const display = document.getElementById('user-display');
+            if (display) display.innerText = user ? user.email : "Desconectado";
+
+            const btn = document.getElementById('auth-btn');
+            if (btn) btn.innerText = user ? "Sair" : "Login";
+
+            init();
         });
 
         window.onload = init;
