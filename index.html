@@ -41,8 +41,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #000;
-            /* Preto puro para exibição */
+            background: radial-gradient(circle, #1a1a1a 0%, #000 100%);
             transition: padding 0.3s;
             position: relative;
         }
@@ -79,7 +78,6 @@
             transition: outline 0.2s;
             transform-origin: top left;
         }
-        /* Outline apenas quando o painel admin está visível */
         
         body:not(.hide-admin) .draggable:hover {
             outline: 2px dashed var(--gold);
@@ -169,6 +167,8 @@
             z-index: 1000;
             box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
         
         .user-session-info {
@@ -238,6 +238,7 @@
         
         .panel-content {
             padding: 20px;
+            flex: 1;
         }
         
         .input-group {
@@ -277,6 +278,12 @@
             font-weight: bold;
             text-transform: uppercase;
             margin-bottom: 10px;
+            transition: opacity 0.2s;
+        }
+        
+        .btn-main:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         
         .btn-publish {
@@ -314,7 +321,6 @@
         .slide-thumb.active {
             background: var(--primary);
         }
-        /* BOTÃO DE CONFIGURAÇÃO DISCRETO NO CANTO DIREITO */
         
         .btn-toggle {
             position: fixed;
@@ -324,7 +330,7 @@
             width: 45px;
             height: 45px;
             border-radius: 50%;
-            background: rgba(42, 42, 42, 0.4);
+            background: rgba(42, 42, 42, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.1);
             cursor: pointer;
             color: white;
@@ -336,12 +342,6 @@
             backdrop-filter: blur(5px);
         }
         
-        .btn-toggle:hover {
-            background: var(--primary);
-            transform: rotate(90deg);
-            opacity: 1;
-        }
-        
         .hidden {
             display: none !important;
         }
@@ -350,7 +350,7 @@
 
 <body class="hide-admin">
 
-    <button class="btn-toggle" onclick="toggleAdmin()">⚙️</button>
+    <button class="btn-toggle" onclick="toggleAdmin()" title="Configurações">⚙️</button>
 
     <div id="editor-region">
         <div id="canvas">
@@ -416,9 +416,9 @@
                 </div>
                 <div class="input-group">
                     <label>Escalas</label>
-                    <small>Logo</small> <input type="range" min="0.5" max="3" step="0.1" oninput="updateScale('logo', this.value)">
-                    <small>Textos</small> <input type="range" min="0.5" max="3" step="0.1" oninput="updateScale('header', this.value)">
-                    <small>Lista</small> <input type="range" min="0.5" max="3" step="0.1" oninput="updateScale('lista', this.value)">
+                    <small>Logo</small> <input type="range" min="0.5" max="3" step="0.1" id="sc-logo" oninput="updateScale('logo', this.value)">
+                    <small>Textos</small> <input type="range" min="0.5" max="3" step="0.1" id="sc-header" oninput="updateScale('header', this.value)">
+                    <small>Lista</small> <input type="range" min="0.5" max="3" step="0.1" id="sc-lista" oninput="updateScale('lista', this.value)">
                 </div>
             </div>
 
@@ -429,13 +429,17 @@
 
             <div id="tab-slides" class="tab-pane hidden">
                 <div class="slide-selector" id="slide-nav"></div>
+                <div class="input-group">
+                    <label>Duração do Slide (segundos)</label>
+                    <input type="number" id="in-duration" min="5" onchange="updateBase('duracao', this.value)">
+                </div>
                 <button class="btn-main btn-add" onclick="duplicateSlide()">Duplicar Slide</button>
                 <button class="btn-main" style="background:#c0392b; color:white" onclick="deleteSlide()">Excluir Slide</button>
             </div>
 
             <hr style="border:0; border-top: 1px dashed #444; margin: 20px 0;">
-            <button class="btn-main btn-save" onclick="salvarRascunho()">Sincronizar Nuvem</button>
-            <button class="btn-main btn-publish" onclick="publicarNaPlaylist()">Publicar na TV Agora</button>
+            <button id="btn-sync" class="btn-main btn-save" onclick="salvarRascunho()">Sincronizar Nuvem</button>
+            <button id="btn-pub" class="btn-main btn-publish" onclick="publicarNaPlaylist()">Publicar na TV Agora</button>
         </div>
     </div>
 
@@ -460,6 +464,7 @@
             currentUser: null,
             currentSlide: 0,
             activeItemIdx: 0,
+            autoSaveTimer: null,
             slides: [{
                 nome: "Menu Principal",
                 duracao: 15,
@@ -502,25 +507,29 @@
 
         async function init() {
             document.getElementById('display-device-id').innerText = appState.deviceId;
-
             if (appState.ownerUid) {
                 db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}/MenuPack/data`)
-                    .onSnapshot(doc => {
+                    .get().then(doc => {
                         if (doc.exists) {
                             const data = doc.data();
-                            if (data.slides) {
-                                appState.slides = data.slides;
-                                loadSlide(appState.currentSlide);
-                            }
+                            if (data.slides) appState.slides = data.slides;
+                            loadSlide(0);
                         }
                     });
             }
-
             loadSlide(0);
-            startRotation();
             applyScaling();
             window.addEventListener('resize', applyScaling);
         }
+
+        // --- ROTAÇÃO DE DESTAQUE ---
+        setInterval(() => {
+            const s = appState.slides[appState.currentSlide];
+            if (s && s.lista && s.lista.length > 0) {
+                appState.activeItemIdx = (appState.activeItemIdx + 1) % s.lista.length;
+                updateHighlight();
+            }
+        }, 5000);
 
         function loadSlide(idx) {
             appState.currentSlide = idx;
@@ -532,6 +541,12 @@
             document.getElementById('in-title').value = s.title;
             document.getElementById('in-desc').value = s.desc;
             document.getElementById('in-orientation').value = s.orientation;
+            document.getElementById('in-duration').value = s.duracao || 15;
+
+            // Atualizar Sliders de escala
+            document.getElementById('sc-logo').value = s.scales.logo;
+            document.getElementById('sc-header').value = s.scales.header;
+            document.getElementById('sc-lista').value = s.scales.lista;
 
             updateOrientation(s.orientation);
             render();
@@ -561,7 +576,10 @@
             const s = appState.slides[appState.currentSlide];
             document.querySelectorAll('.draggable').forEach(el => {
                 const key = el.getAttribute('data-key');
-                const p = s.pos[key];
+                const p = s.pos[key] || {
+                    x: 0,
+                    y: 0
+                };
                 const scale = s.scales[key] || 1;
                 el.style.transform = `translate(${p.x}px, ${p.y}px) scale(${scale})`;
                 el.setAttribute('data-x', p.x);
@@ -586,18 +604,29 @@
                     t.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
                     t.setAttribute('data-x', x);
                     t.setAttribute('data-y', y);
+
+                    triggerAutoSave();
                 }
             }
         });
 
+        function triggerAutoSave() {
+            clearTimeout(appState.autoSaveTimer);
+            appState.autoSaveTimer = setTimeout(() => {
+                if (appState.currentUser) salvarRascunho(true);
+            }, 2000);
+        }
+
         function updateBase(f, v) {
             appState.slides[appState.currentSlide][f] = v;
             render();
+            triggerAutoSave();
         }
 
         function updateScale(key, val) {
             appState.slides[appState.currentSlide].scales[key] = val;
             applyPositionsAndScales();
+            triggerAutoSave();
         }
 
         function updateOrientation(mode) {
@@ -611,16 +640,18 @@
             const canvas = document.getElementById('canvas');
             const isAdminVisible = !document.getElementById('admin-panel').classList.contains('hidden');
 
-            // Ajusta o cálculo baseado na largura disponível
             const availableWidth = isAdminVisible ? region.offsetWidth : window.innerWidth;
             const availableHeight = window.innerHeight;
 
-            const scale = Math.min((availableWidth - 40) / canvas.offsetWidth, (availableHeight - 40) / canvas.offsetHeight);
+            const scale = Math.min((availableWidth - 60) / canvas.offsetWidth, (availableHeight - 60) / canvas.offsetHeight);
             canvas.style.transform = `scale(${scale})`;
         }
 
-        async function salvarRascunho() {
-            if (!appState.currentUser) return alert("Faça login primeiro!");
+        async function salvarRascunho(isAuto = false) {
+            if (!appState.currentUser) return;
+            const btn = document.getElementById('btn-sync');
+            if (!isAuto) btn.innerText = "⏳ Salvando...";
+
             const path = `usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}/MenuPack/data`;
             try {
                 await db.doc(path).set({
@@ -629,49 +660,57 @@
                 }, {
                     merge: true
                 });
-                alert("✅ Rascunho sincronizado!");
+                if (!isAuto) {
+                    btn.innerText = "Sincronizar Nuvem";
+                    alert("✅ Sincronizado com a Nuvem!");
+                }
                 return true;
             } catch (e) {
                 console.error(e);
-                alert("Erro ao salvar.");
+                if (!isAuto) alert("Erro ao salvar.");
                 return false;
             }
         }
 
         async function publicarNaPlaylist() {
-            if (!appState.currentUser) return alert("Faça login primeiro!");
+            if (!appState.ownerUid || !appState.deviceId) return alert("Faça login primeiro.");
 
-            // 1. Salva o rascunho antes para garantir que a TV pegue a versão mais recente
-            const salvo = await salvarRascunho();
-            if (!salvo) return;
+            const btn = document.getElementById('btn-pub');
+            btn.disabled = true;
+            btn.innerText = "🚀 Publicando...";
+
+            const salvo = await salvarRascunho(true);
+            if (!salvo) {
+                btn.disabled = false;
+                return;
+            }
 
             try {
-                // Calcula a duração total somando todos os slides
-                const totalDur = appState.slides.reduce((t, s) => t + (parseInt(s.duracao) || 10), 0);
+                const slideAtual = appState.slides[appState.currentSlide];
+                const finalUrl = `https://marcelonstos-byte.github.io/menupack/?id=${appState.deviceId}`;
+                const duracaoTotal = appState.slides.reduce((total, slide) => total + (parseInt(slide.duracao) || 15), 0);
 
                 const novaMidia = {
-                    nome: "Menu Digital - " + new Date().toLocaleTimeString(),
-                    // URL simplificada apenas com o ID do dispositivo
-                    url: `https://marcelonstos-byte.github.io/menupack/?id=${appState.deviceId}`,
+                    nome: "Menu Digital - " + (slideAtual.title || "Sem Título"),
+                    url: finalUrl,
                     tipo: "Menu",
-                    duracao: totalDur,
+                    duracao: duracaoTotal,
                     ativo: true,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    origem: "EDITOR_PRO_V1"
                 };
 
-                // Referência do documento do dispositivo no Firestore
-                const ref = db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}`);
-
-                // Atualiza o array de mídias na playlist da TV
-                await ref.update({
+                await db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}`).update({
                     midias: firebase.firestore.FieldValue.arrayUnion(novaMidia),
                     lastActive: new Date().toISOString()
                 });
 
-                alert("🚀 Publicado na TV com sucesso!");
+                alert("🚀 Sucesso! O Menu foi enviado para a fila da TV.");
             } catch (e) {
-                console.error("Erro ao publicar:", e);
                 alert("Erro ao publicar: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Publicar na TV Agora";
             }
         }
 
@@ -682,8 +721,8 @@
                 <div class="input-group">
                     <input type="text" value="${item.nome}" oninput="updateItem(${i}, 'nome', this.value)" placeholder="Nome">
                     <input type="text" value="${item.preco}" oninput="updateItem(${i}, 'preco', this.value)" placeholder="Preço">
-                    <input type="text" value="${item.img}" onchange="updateItem(${i}, 'img', this.value)" placeholder="URL Imagem">
-                    <button onclick="removeItem(${i})" style="color:red; background:none; border:none; cursor:pointer; font-size:10px">Remover</button>
+                    <input type="text" value="${item.img}" onchange="updateItem(${i}, 'img', this.value)" placeholder="URL Imagem do Produto">
+                    <button onclick="removeItem(${i})" style="color:red; background:none; border:none; cursor:pointer; font-size:10px; margin-top:5px">🗑 Remover Item</button>
                 </div>
             `).join('');
         }
@@ -691,6 +730,7 @@
         function updateItem(i, f, v) {
             appState.slides[appState.currentSlide].lista[i][f] = v;
             render();
+            triggerAutoSave();
         }
 
         function addItem() {
@@ -701,24 +741,30 @@
             });
             renderAdmin();
             render();
+            triggerAutoSave();
         }
 
         function removeItem(i) {
-            appState.slides[appState.currentSlide].lista.splice(i, 1);
-            renderAdmin();
-            render();
+            if (confirm("Deseja remover este item?")) {
+                appState.slides[appState.currentSlide].lista.splice(i, 1);
+                renderAdmin();
+                render();
+                triggerAutoSave();
+            }
         }
 
         function duplicateSlide() {
             const clone = JSON.parse(JSON.stringify(appState.slides[appState.currentSlide]));
             appState.slides.push(clone);
             loadSlide(appState.slides.length - 1);
+            triggerAutoSave();
         }
 
         function deleteSlide() {
-            if (appState.slides.length > 1) {
+            if (appState.slides.length > 1 && confirm("Excluir este slide permanentemente?")) {
                 appState.slides.splice(appState.currentSlide, 1);
                 loadSlide(0);
+                triggerAutoSave();
             }
         }
 
@@ -747,28 +793,20 @@
             const s = appState.slides[appState.currentSlide];
             const h = document.getElementById('selector-highlight');
             const img = document.getElementById('preview-principal');
-            if (!s.lista.length) return;
+            if (!s || !s.lista || !s.lista.length) return;
+
+            if (appState.activeItemIdx >= s.lista.length) appState.activeItemIdx = 0;
+
             h.style.transform = `translateY(${appState.activeItemIdx * 72}px)`;
             img.style.opacity = '0';
             setTimeout(() => {
-                // Usando Placehold.co que é mais estável
-                img.src = s.lista[appState.activeItemIdx].img || 'https://placehold.co/400x400/2a2a2a/ffffff?text=MenuPack';
+                img.src = s.lista[appState.activeItemIdx].img || 'https://placehold.co/400x400/2a2a2a/ffffff?text=Sem+Imagem';
                 img.style.opacity = '1';
             }, 300);
         }
 
-        function startRotation() {
-            setInterval(() => {
-                const s = appState.slides[appState.currentSlide];
-                if (s.lista.length > 0) {
-                    appState.activeItemIdx = (appState.activeItemIdx + 1) % s.lista.length;
-                    updateHighlight();
-                }
-            }, 5000);
-        }
-
         function changeDevicePrompt() {
-            const id = prompt("ID da TV:", appState.deviceId);
+            const id = prompt("Digite o ID da TV de destino:", appState.deviceId);
             if (id) {
                 appState.deviceId = id;
                 document.getElementById('display-device-id').innerText = id;
