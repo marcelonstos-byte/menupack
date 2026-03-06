@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MenuPack Pro - Smart Indoor Editor</title>
+    <title>Smart Indoor Pro - V6.0 Full Array Sync</title>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -15,479 +15,371 @@
     <style>
          :root {
             --primary: #e63946;
-            --dark-bg: #121212;
-            --sidebar-bg: #1e1e1e;
-            --card-bg: #2a2a2a;
             --gold: #ffb703;
-            --accent: #457b9d;
-            --highlight: rgba(255, 183, 3, 0.25);
+            --accent: #00b4ff;
+            --dark: #0a0a0a;
+            --panel-w: 380px;
         }
         
-        body,
-        html {
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
+        }
+        
+        body {
             background: #000;
+            color: #fff;
             font-family: 'Inter', sans-serif;
-            display: flex;
-            justify-content: flex-start;
-            align-items: center;
-        }
-        
-        #editor-region {
-            flex: 1;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #090909;
-            padding-right: 400px;
-            transition: padding 0.3s;
-        }
-        
-        #canvas {
-            position: relative;
-            background: #111 no-repeat center center;
-            background-size: cover;
-            z-index: 1;
             overflow: hidden;
-            box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
-            width: 1280px;
-            height: 720px;
-            transform-origin: center;
+            height: 100vh;
         }
         
-        body.portrait-mode #canvas {
-            width: 720px;
-            height: 1280px;
+        #main-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
         }
         
-        #bg-filter {
+        #stage {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle, #1a1a1a 0%, #000 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #master-screen {
+            position: relative;
+        }
+        
+        #viewport {
+            width: 1920px;
+            height: 1080px;
+            background-color: #111;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 100px rgba(0, 0, 0, 0.5);
+        }
+        
+        #dark-overlay {
             position: absolute;
             inset: 0;
-            background: rgba(0, 0, 0, 0.4);
-            z-index: 2;
+            background: #000;
             pointer-events: none;
+            z-index: 5;
+            opacity: 0.4;
         }
         
-        .draggable {
+        .element {
             position: absolute;
             z-index: 10;
+            cursor: default;
+            user-select: none;
+            will-change: transform;
+        }
+        
+        .editor-active .element {
             cursor: move;
-            transition: outline 0.2s;
-            transform-origin: top left;
+            outline: 2px dashed rgba(255, 255, 255, 0.3);
+            outline-offset: 5px;
         }
         
-        .draggable:hover {
-            outline: 2px dashed var(--gold);
-        }
-        
-        #logo-preview {
-            width: 150px;
-            min-height: 50px;
-        }
-        
-        #text-header {
-            color: white;
-        }
-        
-        #text-header h1 {
-            margin: 0;
-            font-size: 2.5rem;
-            text-transform: uppercase;
-            color: var(--gold);
+        .txt {
             font-weight: 900;
+            text-transform: uppercase;
+            line-height: 1.1;
+            white-space: nowrap;
         }
         
-        #text-header p {
-            margin: 0;
-            font-size: 1.2rem;
-            opacity: 0.8;
-        }
-        
-        #preview-principal {
-            width: 400px;
-            height: 400px;
-            object-fit: contain;
-            transition: opacity 0.5s;
-        }
-        
-        #lista-container {
-            width: 450px;
-            min-height: 100px;
-            background: rgba(0, 0, 0, 0.6);
-            padding: 20px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        #selector-highlight {
-            position: absolute;
-            left: 0;
+        .element img {
             width: 100%;
-            height: 72px;
-            background: var(--highlight);
-            border-left: 6px solid var(--gold);
-            transition: transform 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-            z-index: 5;
-            pointer-events: none;
-        }
-        
-        .menu-item {
-            position: relative;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 18px 15px;
-            color: #fff;
-            height: 36px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            z-index: 6;
-        }
-        
-        .item-nome {
-            font-size: 1.4rem;
-            font-weight: 900;
-            text-transform: uppercase;
-        }
-        
-        .item-preco {
-            font-size: 1.4rem;
-            color: var(--gold);
-            font-weight: bold;
-        }
-        
-        #admin-panel {
-            position: fixed;
-            top: 0;
-            right: 0;
-            width: 400px;
-            height: 100%;
-            background: var(--sidebar-bg);
-            color: #ecf0f1;
-            z-index: 1000;
-            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
-            overflow-y: auto;
+            height: auto;
             display: block;
         }
-        /* Estilo atraente para Login/ID */
         
-        .user-session-info {
-            background: #111;
-            padding: 15px 20px;
-            border-bottom: 1px solid #333;
+        .anim-fade-in {
+            animation: fadeIn 1s ease forwards;
         }
         
-        .session-row {
+        .anim-slide-up {
+            animation: slideUp 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        
+        .anim-zoom-in {
+            animation: zoomIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translate(var(--tx), calc(var(--ty) + 100px));
+            }
+            to {
+                opacity: 1;
+                transform: translate(var(--tx), var(--ty));
+            }
+        }
+        
+        @keyframes zoomIn {
+            from {
+                opacity: 0;
+                transform: translate(var(--tx), var(--ty)) scale(0.5);
+            }
+            to {
+                opacity: 1;
+                transform: translate(var(--tx), var(--ty)) scale(1);
+            }
+        }
+        
+        #editor-panel {
+            width: var(--panel-w);
+            background: var(--dark);
+            border-left: 2px solid #222;
+            display: none;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 20px;
+            z-index: 1000;
+        }
+        
+        body.editor-active #editor-panel {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
         }
         
-        .session-label {
-            font-size: 9px;
-            color: #666;
+        .section {
+            background: #151515;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #222;
+        }
+        
+        h3 {
+            font-size: 11px;
+            color: var(--gold);
             text-transform: uppercase;
+            margin-bottom: 8px;
             letter-spacing: 1px;
         }
         
-        .session-value {
-            font-size: 11px;
-            color: #eee;
-            font-weight: 600;
-        }
-        
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: #222;
-            padding: 4px 10px;
-            border-radius: 20px;
-            border: 1px solid #333;
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            background: #e63946;
-            border-radius: 50%;
-            box-shadow: 0 0 5px rgba(230, 57, 70, 0.5);
-        }
-        
-        .status-dot.online {
-            background: #27ae60;
-            box-shadow: 0 0 5px rgba(39, 174, 96, 0.5);
-        }
-        
-        .panel-header {
-            background: var(--dark-bg);
-            padding: 20px;
-            border-bottom: 2px solid var(--primary);
-        }
-        
-        .tab-menu {
-            display: flex;
-            background: #111;
-        }
-        
-        .tab-btn {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            background: none;
-            color: white;
-            cursor: pointer;
-            font-size: 12px;
-            text-transform: uppercase;
-        }
-        
-        .tab-btn.active {
-            border-bottom: 3px solid var(--primary);
-            background: var(--sidebar-bg);
-        }
-        
-        .panel-content {
-            padding: 20px;
-        }
-        
-        .input-group {
-            background: var(--card-bg);
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 8px;
-        }
-        
-        .input-group label {
+        label {
+            font-size: 10px;
+            color: #777;
             display: block;
-            font-size: 11px;
-            color: #bdc3c7;
-            margin-bottom: 8px;
-            text-transform: uppercase;
+            margin-top: 8px;
         }
         
-        input[type="text"],
-        input[type="number"],
-        input[type="range"],
+        input,
         select {
             width: 100%;
-            padding: 10px;
             background: #000;
-            border: 1px solid #444;
+            border: 1px solid #333;
             color: #fff;
-            border-radius: 4px;
-            margin-bottom: 8px;
-            box-sizing: border-box;
-        }
-        
-        .scale-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .btn-main {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            margin-top: 4px;
             font-size: 12px;
         }
         
-        .btn-publish {
-            background: var(--primary);
-            color: white;
+        .row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: 0.3s;
         }
         
         .btn-save {
-            background: var(--accent);
+            background: #3498db;
             color: white;
+            margin-top: 15px;
         }
         
-        .btn-add {
-            background: #27ae60;
+        .btn-publish {
+            background: #2ecc71;
             color: white;
+            margin-top: 5px;
         }
         
-        .btn-auth {
-            background: transparent;
-            color: var(--primary);
-            border: 1px solid var(--primary);
-            padding: 2px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 9px;
+        .btn-outline {
+            background: #222;
+            color: #ccc;
+            font-size: 11px;
         }
         
-        .slide-selector {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 15px;
-            overflow-x: auto;
-            padding-bottom: 10px;
-        }
-        
-        .slide-thumb {
-            padding: 8px 15px;
-            background: #333;
-            border-radius: 4px;
-            cursor: pointer;
-            white-space: nowrap;
-            font-size: 12px;
-        }
-        
-        .slide-thumb.active {
-            background: var(--primary);
-        }
-        
-        .btn-toggle {
+        #config-trigger {
             position: fixed;
-            bottom: 30px;
-            left: 30px;
-            z-index: 2000;
-            width: 65px;
-            height: 65px;
+            bottom: 20px;
+            right: 20px;
+            width: 45px;
+            height: 45px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #333;
             border-radius: 50%;
-            background: var(--primary);
-            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
-            color: white;
-            font-size: 28px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            z-index: 2000;
         }
         
-        .hidden {
-            display: none !important;
+        #status-bar {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 11px;
+            color: var(--accent);
+            z-index: 3000;
+            border: 1px solid #222;
+        }
+        
+        .info-box {
+            font-size: 10px;
+            color: #aaa;
+            line-height: 1.4;
+        }
+        
+        .info-box span {
+            color: var(--accent);
+            word-break: break-all;
         }
     </style>
 </head>
 
 <body>
+    <div id="status-bar">Sincronizando...</div>
+    <div id="config-trigger" onclick="handleAuthToggle()">⚙️</div>
 
-    <button class="btn-toggle" onclick="toggleAdmin()">⚙️</button>
-
-    <div id="editor-region">
-        <div id="canvas">
-            <div id="bg-filter"></div>
-            <img id="logo-preview" src="" class="draggable" data-x="50" data-y="30">
-
-            <div id="text-header" class="draggable" data-x="250" data-y="40">
-                <h1 id="view-title">CARDÁPIO DO DIA</h1>
-                <p id="view-desc">Confira nossas ofertas especiais</p>
-            </div>
-
-            <img id="preview-principal" src="" class="draggable" data-x="100" data-y="150">
-
-            <div id="lista-container" class="draggable" data-x="750" data-y="150">
-                <div id="selector-highlight"></div>
-                <div id="items-render"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="admin-panel">
-        <div class="user-session-info">
-            <div class="session-row">
-                <span class="session-label">Sessão Ativa</span>
-                <button id="auth-btn" class="btn-auth" onclick="toggleLogin()">Login</button>
-            </div>
-            <div class="session-row">
-                <div class="status-badge">
-                    <div id="status-dot" class="status-dot"></div>
-                    <span id="user-display" class="session-value">Desconectado</span>
-                </div>
-            </div>
-            <div class="session-row" style="margin-top:12px; border-top: 1px solid #222; padding-top: 8px;">
-                <span class="session-label">ID do Dispositivo:</span>
-                <span id="display-device-id" class="session-value" style="color:var(--gold)">---</span>
-            </div>
-        </div>
-
-        <div class="panel-header">
-            <h3 style="margin:0">MenuPack <span style="color:var(--primary)">PRO</span></h3>
-            <small style="display:block; opacity:0.7">Editor Visual e Sincronização</small>
-        </div>
-
-        <div class="tab-menu">
-            <button class="tab-btn active" onclick="openTab('layout')">Layout</button>
-            <button class="tab-btn" onclick="openTab('produtos')">Produtos</button>
-            <button class="tab-btn" onclick="openTab('slides')">Slides</button>
-        </div>
-
-        <div class="panel-content">
-            <div id="tab-layout" class="tab-pane">
-                <div class="input-group">
-                    <label>ID DA TV (Device ID)</label>
-                    <input type="text" id="in-device" placeholder="Cole o ID aqui" onchange="updateDevice(this.value)">
-
-                    <label>Orientação</label>
-                    <select id="in-orientation" onchange="updateOrientation(this.value)">
-                        <option value="landscape">Paisagem (Horizontal)</option>
-                        <option value="portrait">Retrato (Vertical)</option>
-                    </select>
-
-                    <label>Fundo (URL)</label>
-                    <input type="text" id="in-bg" placeholder="URL da Imagem de Fundo" onchange="updateBase('bg', this.value)">
-
-                    <label>Logo (URL)</label>
-                    <input type="text" id="in-logo" placeholder="URL da Logo" onchange="updateBase('logo', this.value)">
-                </div>
-
-                <div class="input-group">
-                    <label>Ajuste de Tamanhos (Escala)</label>
-
-                    <small>Logo</small>
-                    <div class="scale-control">
-                        <input type="range" min="0.1" max="3" step="0.1" value="1" oninput="updateScale('logo', this.value)">
+    <div id="main-container">
+        <div id="stage">
+            <div id="master-screen">
+                <div id="viewport">
+                    <div id="dark-overlay"></div>
+                    <div id="el-logo" class="element" data-key="pos_logo"><img id="v-logo"></div>
+                    <div id="el-prod" class="element" data-key="pos_prod"><img id="v-prod"></div>
+                    <div id="el-title" class="element" data-key="pos_title">
+                        <div id="v-title" class="txt">Produto</div>
                     </div>
-
-                    <small>Cabeçalho (Textos)</small>
-                    <div class="scale-control">
-                        <input type="range" min="0.1" max="3" step="0.1" value="1" oninput="updateScale('header', this.value)">
+                    <div id="el-desc" class="element" data-key="pos_desc">
+                        <div id="v-desc" class="txt" style="font-weight:400; text-transform:none;">Descrição</div>
                     </div>
-
-                    <small>Imagem Principal</small>
-                    <div class="scale-control">
-                        <input type="range" min="0.1" max="3" step="0.1" value="1" oninput="updateScale('img', this.value)">
-                    </div>
-
-                    <small>Lista de Preços</small>
-                    <div class="scale-control">
-                        <input type="range" min="0.1" max="3" step="0.1" value="1" oninput="updateScale('lista', this.value)">
+                    <div id="el-price" class="element" data-key="pos_price">
+                        <div id="v-price" class="txt">R$ 0,00</div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="input-group">
-                    <label>Textos Fixos</label>
-                    <input type="text" id="in-title" placeholder="Título" oninput="updateBase('title', this.value)">
-                    <input type="text" id="in-desc" placeholder="Descrição" oninput="updateBase('desc', this.value)">
+        <aside id="editor-panel">
+            <h2 style="font-size: 16px; margin-bottom: 5px;">Smart Indoor <span style="color:var(--primary)">PRO V6</span></h2>
+
+            <div class="section" style="background: #000; border-color: #333;">
+                <h3>Identificação do Sistema</h3>
+                <div class="info-box">
+                    Conta: <span id="info-user">---</span><br> Tela: <span id="info-telinha">---</span><br> ID: <span id="info-id">---</span>
                 </div>
             </div>
 
-            <div id="tab-produtos" class="tab-pane hidden">
-                <div id="admin-items-list"></div>
-                <button class="btn-main btn-add" onclick="addItem()">+ Adicionar Produto</button>
+            <div class="section">
+                <h3>Layout e Orientação</h3>
+                <label>Orientação da Tela</label>
+                <select id="in-orientation" onchange="updateLive('orientation', this.value)">
+                    <option value="horizontal">Horizontal (1920x1080)</option>
+                    <option value="vertical">Vertical (1080x1920)</option>
+                </select>
+                <label>Intensidade do Filtro Escuro</label>
+                <input type="range" min="0" max="1" step="0.1" id="in-dark" oninput="updateLive('dark_intensity', parseFloat(this.value))">
             </div>
 
-            <div id="tab-slides" class="tab-pane hidden">
-                <div class="slide-selector" id="slide-nav"></div>
-                <button class="btn-main btn-add" onclick="duplicateSlide()">Duplicar Slide</button>
-                <button class="btn-main" style="background:#c0392b; color:white" onclick="deleteSlide()">Excluir Slide</button>
+            <div class="section">
+                <h3>Navegação Slides</h3>
+                <div class="row">
+                    <button class="btn btn-outline" onclick="changeSlide(-1)">◀</button>
+                    <span id="slide-index" style="font-size:12px; min-width:40px; text-align:center;">1 / 1</span>
+                    <button class="btn btn-outline" onclick="changeSlide(1)">▶</button>
+                </div>
+                <button class="btn btn-outline" style="background:var(--accent); color:black;" onclick="cloneSlide()">+ Clonar Slide</button>
             </div>
 
-            <hr style="border:0; border-top: 1px dashed #444; margin: 20px 0;">
-            <button class="btn-main btn-save" onclick="salvarRascunho()">Sincronizar Nuvem</button>
-            <button class="btn-main btn-publish" onclick="publicarNaPlaylist()">Publicar na TV agora</button>
-        </div>
+            <div class="section">
+                <h3>Configurações do Slide</h3>
+                <label>Duração (segundos)</label>
+                <input type="number" id="in-duracao" oninput="updateLive('duracao', parseInt(this.value))">
+                <label>Animação</label>
+                <select id="in-anim" onchange="updateLive('anim_type', this.value)">
+                    <option value="anim-fade-in">Fade-in</option>
+                    <option value="anim-slide-up">Slide Up</option>
+                    <option value="anim-zoom-in">Zoom In</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <h3>Textos</h3>
+                <label>Título (Nome)</label>
+                <input type="text" id="in-title" oninput="updateLive('nome', this.value)">
+                <div class="row">
+                    <input type="color" id="in-color-t" oninput="updateLive('color_t', this.value)">
+                    <input type="range" min="20" max="300" id="in-size-t" oninput="updateLive('size_t', parseInt(this.value))">
+                </div>
+                <label>Descrição</label>
+                <input type="text" id="in-desc" oninput="updateLive('descricao', this.value)">
+                <div class="row">
+                    <input type="color" id="in-color-d" oninput="updateLive('color_d', this.value)">
+                    <input type="range" min="10" max="200" id="in-size-d" oninput="updateLive('size_d', parseInt(this.value))">
+                </div>
+                <label>Preço</label>
+                <input type="text" id="in-price" oninput="updateLive('preco', this.value)">
+                <div class="row">
+                    <input type="color" id="in-color-p" oninput="updateLive('color_p', this.value)">
+                    <input type="range" min="20" max="350" id="in-size-p" oninput="updateLive('size_p', parseInt(this.value))">
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Mídias e Tamanhos</h3>
+                <label>URL Imagem Produto</label>
+                <input type="text" id="in-img" oninput="updateLive('url', this.value)">
+                <label>Tamanho Produto</label>
+                <input type="range" min="50" max="1500" id="in-w-prod" oninput="updateLive('w_prod', parseInt(this.value))">
+                <label>URL Logo</label>
+                <input type="text" id="in-logo" oninput="updateLive('logo_url', this.value)">
+                <label>Tamanho Logo</label>
+                <input type="range" min="20" max="800" id="in-w-logo" oninput="updateLive('w_logo', parseInt(this.value))">
+                <label>URL Background</label>
+                <input type="text" id="in-bg" oninput="updateLive('bg', this.value)">
+            </div>
+
+            <button class="btn btn-save" onclick="salvarRascunho()">💾 SALVAR EDIÇÕES</button>
+            <button class="btn btn-publish" onclick="publicarNaPlaylist()">🚀 PUBLICAR NA PLAYLIST</button>
+            <button class="btn btn-outline" onclick="deleteCurrentSlide()" style="color: var(--primary); margin-top: 15px;">Excluir Slide</button>
+            <button class="btn btn-outline" onclick="logout()" style="margin-top: 10px; opacity: 0.5;">Sair</button>
+        </aside>
     </div>
 
     <script>
@@ -497,311 +389,319 @@
             projectId: "newsmartonapp",
             storageBucket: "newsmartonapp.firebasestorage.app",
             messagingSenderId: "1096968028299",
-            appId: "1:1096968028299:web:f3a9e48db108afbbb7548e",
-            databaseURL: "https://newsmartonapp-default-rtdb.firebaseio.com"
+            appId: "1:1096968028299:web:f3a9e48db108afbbb7548e"
         };
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
 
-        let appState = {
-            deviceId: "SVbuSWCNoO42VqDPEmYg",
-            currentUser: null,
-            currentSlide: 0,
-            activeItemIdx: 0,
-            slides: [{
-                orientation: "landscape",
-                logo: "https://cdn-icons-png.flaticon.com/512/732/732217.png",
-                title: "MENU ESPECIAL",
-                desc: "Confira nossas ofertas",
-                bg: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=1920",
-                scales: {
-                    logo: 1,
-                    header: 1,
-                    img: 1,
-                    lista: 1
-                },
-                pos: {
-                    lista: {
-                        x: 750,
-                        y: 150
-                    },
-                    img: {
-                        x: 100,
-                        y: 150
-                    },
-                    logo: {
-                        x: 50,
-                        y: 30
-                    },
-                    header: {
-                        x: 250,
-                        y: 40
-                    }
-                },
-                lista: [{
-                    nome: "Item Exemplo",
-                    preco: "35,00",
-                    img: ""
-                }]
-            }]
+        let state = {
+            slides: [],
+            current: 0,
+            isEditor: false,
+            scale: 1,
+            ownerUid: '',
+            deviceId: new URLSearchParams(window.location.search).get('id') || localStorage.getItem('lastId'),
+            timer: null
         };
 
-        function toggleLogin() {
-            if (appState.currentUser) {
-                auth.signOut();
-            } else {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                auth.signInWithPopup(provider).catch(e => alert("Erro: " + e.message));
+        const ADMIN_ID = "DrzBYJWuNAOoAIRGWfrsKdVFhYr2";
+
+        if (state.deviceId) {
+            localStorage.setItem('lastId', state.deviceId);
+            initData();
+        }
+
+        async function initData() {
+            try {
+                const snap = await db.collectionGroup('dispositivos').get();
+                const deviceDoc = snap.docs.find(d => d.id === state.deviceId);
+
+                if (deviceDoc) {
+                    state.ownerUid = deviceDoc.ref.parent.parent.id;
+                    document.getElementById('info-id').innerText = state.deviceId;
+                    document.getElementById('info-telinha').innerText = deviceDoc.data().nomeTela || "Sem nome";
+
+                    db.doc(`usuarios/${state.ownerUid}/dispositivos/${state.deviceId}/MenuOnly/data`)
+                        .onSnapshot(doc => {
+                            if (doc.exists) {
+                                const incomingSlides = doc.data().slides;
+                                if (incomingSlides && incomingSlides.length > 0 && !state.isEditor) {
+                                    state.slides = incomingSlides;
+                                    startPlayer();
+                                } else if (state.slides.length === 0) {
+                                    state.slides = incomingSlides || [getDefaultTemplate()];
+                                    render();
+                                }
+                            } else if (state.slides.length === 0) {
+                                state.slides = [getDefaultTemplate()];
+                                render();
+                            }
+                            document.getElementById('status-bar').style.display = 'none';
+                        });
+                } else {
+                    document.getElementById('status-bar').innerText = "Erro: Dispositivo não encontrado";
+                }
+            } catch (error) {
+                console.error("Erro no initData:", error);
             }
         }
 
-        auth.onAuthStateChanged(user => {
-            const dot = document.getElementById('status-dot');
-            const display = document.getElementById('user-display');
-            const btn = document.getElementById('auth-btn');
-            if (user) {
-                appState.currentUser = user;
-                dot.classList.add('online');
-                display.innerText = user.email;
-                btn.innerText = "Sair";
-            } else {
-                appState.currentUser = null;
-                dot.classList.remove('online');
-                display.innerText = "Desconectado";
-                btn.innerText = "Login";
-            }
-        });
-
-        function init() {
-            document.getElementById('in-device').value = appState.deviceId;
-            document.getElementById('display-device-id').innerText = appState.deviceId;
-            loadSlide(0);
-            startRotation();
-            applyScaling();
-            window.addEventListener('resize', applyScaling);
-        }
-
-        function loadSlide(idx) {
-            appState.currentSlide = idx;
-            const data = appState.slides[idx];
-            document.getElementById('in-bg').value = data.bg;
-            document.getElementById('in-logo').value = data.logo;
-            document.getElementById('in-title').value = data.title;
-            document.getElementById('in-desc').value = data.desc;
-            document.getElementById('in-orientation').value = data.orientation;
-            updateOrientation(data.orientation);
-            render();
-            renderAdmin();
-            applyPositionsAndScales();
-            renderSlideNav();
+        function getDefaultTemplate() {
+            return {
+                nome: "NOVO PRODUTO",
+                orientation: "horizontal",
+                color_t: "#ffffff",
+                size_t: 100,
+                descricao: "Descrição do item",
+                color_d: "#cccccc",
+                size_d: 40,
+                preco: "19,90",
+                color_p: "#ffb703",
+                size_p: 120,
+                url: "",
+                w_prod: 700,
+                logo_url: "",
+                w_logo: 200,
+                bg: "",
+                dark_intensity: 0.4,
+                anim_type: "anim-fade-in",
+                duracao: 8,
+                pos_title: {
+                    x: 100,
+                    y: 150
+                },
+                pos_desc: {
+                    x: 100,
+                    y: 300
+                },
+                pos_price: {
+                    x: 100,
+                    y: 550
+                },
+                pos_prod: {
+                    x: 1000,
+                    y: 100
+                },
+                pos_logo: {
+                    x: 50,
+                    y: 50
+                }
+            };
         }
 
         function render() {
-            const s = appState.slides[appState.currentSlide];
-            document.getElementById('canvas').style.backgroundImage = `url('${s.bg}')`;
-            document.getElementById('logo-preview').src = s.logo;
-            document.getElementById('view-title').innerText = s.title;
-            document.getElementById('view-desc').innerText = s.desc;
+            const s = state.slides[state.current];
+            if (!s) return;
 
-            const list = document.getElementById('items-render');
-            list.innerHTML = s.lista.map(item => `
-                <div class="menu-item">
-                    <span class="item-nome">${item.nome}</span>
-                    <span class="item-preco">R$ ${item.preco}</span>
-                </div>
-            `).join('');
-            updateHighlight();
-        }
+            const vp = document.getElementById('viewport');
 
-        function updateScale(key, val) {
-            appState.slides[appState.currentSlide].scales[key] = val;
-            applyPositionsAndScales();
-        }
+            if (s.orientation === "vertical") {
+                vp.style.width = "1080px";
+                vp.style.height = "1920px";
+            } else {
+                vp.style.width = "1920px";
+                vp.style.height = "1080px";
+            }
 
-        function updateDevice(id) {
-            appState.deviceId = id;
-            document.getElementById('display-device-id').innerText = id;
-        }
+            vp.style.backgroundImage = s.bg ? `url('${s.bg}')` : 'none';
+            document.getElementById('dark-overlay').style.opacity = s.dark_intensity;
 
-        function applyPositionsAndScales() {
-            const s = appState.slides[appState.currentSlide];
-            const mapping = {
-                'lista-container': 'lista',
-                'preview-principal': 'img',
-                'logo-preview': 'logo',
-                'text-header': 'header'
+            const mapText = (id, text, color, size) => {
+                const el = document.getElementById(id);
+                el.innerText = text;
+                el.style.color = color;
+                el.style.fontSize = size + "px";
             };
 
-            Object.entries(mapping).forEach(([id, key]) => {
-                const el = document.getElementById(id);
-                const p = s.pos[key];
-                const scale = s.scales[key] || 1;
-                el.style.transform = `translate(${p.x}px, ${p.y}px) scale(${scale})`;
-                el.setAttribute('data-x', p.x);
-                el.setAttribute('data-y', p.y);
-            });
-        }
+            mapText('v-title', s.nome, s.color_t, s.size_t);
+            mapText('v-desc', s.descricao, s.color_d, s.size_d);
+            mapText('v-price', "R$ " + s.preco, s.color_p, s.size_p);
 
-        interact('.draggable').draggable({
-            listeners: {
-                move(event) {
-                    const t = event.target;
-                    const x = (parseFloat(t.getAttribute('data-x')) || 0) + event.dx;
-                    const y = (parseFloat(t.getAttribute('data-y')) || 0) + event.dy;
-                    const idMap = {
-                        'lista-container': 'lista',
-                        'preview-principal': 'img',
-                        'logo-preview': 'logo',
-                        'text-header': 'header'
-                    };
-                    const key = idMap[t.id];
-                    appState.slides[appState.currentSlide].pos[key] = {
-                        x,
-                        y
-                    };
-                    const scale = appState.slides[appState.currentSlide].scales[key] || 1;
-                    t.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-                    t.setAttribute('data-x', x);
-                    t.setAttribute('data-y', y);
+            const imgProd = document.getElementById('v-prod');
+            imgProd.src = s.url || '';
+            imgProd.parentElement.style.width = (s.w_prod || 700) + "px";
+
+            const imgLogo = document.getElementById('v-logo');
+            imgLogo.src = s.logo_url || '';
+            imgLogo.parentElement.style.width = (s.w_logo || 200) + "px";
+
+            Object.keys(s).forEach(key => {
+                if (key.startsWith('pos_')) {
+                    const el = document.getElementById(key.replace('pos_', 'el-'));
+                    if (el) {
+                        el.style.setProperty('--tx', `${s[key].x}px`);
+                        el.style.setProperty('--ty', `${s[key].y}px`);
+                        el.style.transform = `translate(${s[key].x}px, ${s[key].y}px)`;
+
+                        if (!state.isEditor) {
+                            el.classList.remove('anim-fade-in', 'anim-slide-up', 'anim-zoom-in');
+                            void el.offsetWidth;
+                            el.classList.add(s.anim_type || 'anim-fade-in');
+                        }
+                    }
                 }
-            }
-        });
-
-        function updateBase(f, v) {
-            appState.slides[appState.currentSlide][f] = v;
-            render();
-        }
-
-        function updateOrientation(mode) {
-            appState.slides[appState.currentSlide].orientation = mode;
-            document.body.classList.toggle('portrait-mode', mode === 'portrait');
-            setTimeout(applyScaling, 50);
-        }
-
-        function applyScaling() {
-            const region = document.getElementById('editor-region');
-            const canvas = document.getElementById('canvas');
-            const scale = Math.min((region.offsetWidth - 60) / canvas.offsetWidth, (region.offsetHeight - 60) / canvas.offsetHeight);
-            canvas.style.transform = `scale(${scale})`;
-        }
-
-        function updateHighlight() {
-            const s = appState.slides[appState.currentSlide];
-            const h = document.getElementById('selector-highlight');
-            const img = document.getElementById('preview-principal');
-            if (!s.lista || s.lista.length === 0) return;
-            h.style.transform = `translateY(${appState.activeItemIdx * 72.5}px)`;
-            img.style.opacity = '0';
-            setTimeout(() => {
-                img.src = s.lista[appState.activeItemIdx].img || 'https://via.placeholder.com/400?text=Sem+Imagem';
-                img.style.opacity = '1';
-            }, 300);
-        }
-
-        function startRotation() {
-            setInterval(() => {
-                const s = appState.slides[appState.currentSlide];
-                if (s.lista && s.lista.length > 0) {
-                    appState.activeItemIdx = (appState.activeItemIdx + 1) % s.lista.length;
-                    updateHighlight();
-                }
-            }, 5000);
-        }
-
-        function renderAdmin() {
-            const s = appState.slides[appState.currentSlide];
-            const div = document.getElementById('admin-items-list');
-            div.innerHTML = s.lista.map((item, i) => `
-                <div class="input-group">
-                    <input type="text" value="${item.nome}" oninput="updateItem(${i}, 'nome', this.value)" placeholder="Nome">
-                    <input type="text" value="${item.preco}" oninput="updateItem(${i}, 'preco', this.value)" placeholder="Preço">
-                    <input type="text" value="${item.img}" onchange="updateItem(${i}, 'img', this.value)" placeholder="URL Imagem">
-                    <button onclick="removeItem(${i})" style="color:red; background:none; border:none; cursor:pointer">Remover</button>
-                </div>
-            `).join('');
-        }
-
-        function updateItem(i, f, v) {
-            appState.slides[appState.currentSlide].lista[i][f] = v;
-            render();
-        }
-
-        function addItem() {
-            appState.slides[appState.currentSlide].lista.push({
-                nome: "Novo Item",
-                preco: "0,00",
-                img: ""
             });
-            renderAdmin();
-            render();
-        }
 
-        function removeItem(i) {
-            appState.slides[appState.currentSlide].lista.splice(i, 1);
-            renderAdmin();
-            render();
-        }
-
-        function duplicateSlide() {
-            const current = JSON.parse(JSON.stringify(appState.slides[appState.currentSlide]));
-            appState.slides.push(current);
-            loadSlide(appState.slides.length - 1);
-        }
-
-        function deleteSlide() {
-            if (appState.slides.length <= 1) return;
-            appState.slides.splice(appState.currentSlide, 1);
-            loadSlide(0);
-        }
-
-        function renderSlideNav() {
-            const nav = document.getElementById('slide-nav');
-            nav.innerHTML = appState.slides.map((_, i) => `
-                <div class="slide-thumb ${i === appState.currentSlide ? 'active' : ''}" onclick="loadSlide(${i})">Slide ${i + 1}</div>
-            `).join('');
-        }
-
-        function toggleAdmin() {
-            const p = document.getElementById('admin-panel');
-            const reg = document.getElementById('editor-region');
-            const isHidden = p.style.display === 'none';
-            p.style.display = isHidden ? 'block' : 'none';
-            reg.style.paddingRight = isHidden ? '400px' : '0';
-            setTimeout(applyScaling, 300);
-        }
-
-        function openTab(t) {
-            document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('tab-' + t).classList.remove('hidden');
-            event.currentTarget.classList.add('active');
+            if (state.isEditor) syncPanelInputs();
+            setTimeout(applyScaling, 10);
         }
 
         async function salvarRascunho() {
-            if (!appState.currentUser) {
-                alert("⚠️ Faça login para salvar!");
-                return;
-            }
+            if (!state.ownerUid) return;
             try {
-                await db.collection('usuarios').doc(appState.currentUser.uid)
-                    .collection('dispositivos').doc(appState.deviceId)
-                    .collection('MenuPack').doc('datapack').set({
-                        slides: appState.slides,
-                        lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                alert("✅ Sincronizado!");
+                await db.doc(`usuarios/${state.ownerUid}/dispositivos/${state.deviceId}/MenuOnly/data`).set({
+                    slides: state.slides,
+                    lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert("✅ Design salvo com sucesso!");
             } catch (e) {
-                alert("❌ Erro de permissão.");
+                alert("Erro ao salvar: " + e.message);
             }
         }
 
         async function publicarNaPlaylist() {
-            await salvarRascunho();
+            if (!state.ownerUid || !state.deviceId) return;
+            const slideAtual = state.slides[state.current];
+            const finalUrl = `https://marcelonstos-byte.github.io/menudigital?id=${state.deviceId}`;
+            const duracaoTotal = state.slides.reduce((total, slide) => total + (parseInt(slide.duracao) || 8), 0);
+
+            const novaMidia = {
+                nome: slideAtual.nome || "Menu Digital",
+                url: finalUrl,
+                tipo: "Menu",
+                duracao: duracaoTotal,
+                ativo: true,
+                origem: "EDITOR_V6"
+            };
+
+            try {
+                const ref = db.doc(`usuarios/${state.ownerUid}/dispositivos/${state.deviceId}`);
+                await ref.update({
+                    midias: firebase.firestore.FieldValue.arrayUnion(novaMidia)
+                });
+                alert(`🚀 Mídia publicada na playlist!`);
+            } catch (e) {
+                alert("Erro ao publicar: " + e.message);
+            }
         }
 
-        window.onload = init;
+        function updateLive(field, value) {
+            state.slides[state.current][field] = value;
+            render();
+        }
+
+        function syncPanelInputs() {
+            const s = state.slides[state.current];
+            document.getElementById('slide-index').innerText = `${state.current + 1} / ${state.slides.length}`;
+            document.getElementById('in-title').value = s.nome;
+            document.getElementById('in-desc').value = s.descricao;
+            document.getElementById('in-price').value = s.preco;
+            document.getElementById('in-img').value = s.url;
+            document.getElementById('in-logo').value = s.logo_url || "";
+            document.getElementById('in-bg').value = s.bg;
+            document.getElementById('in-duracao').value = s.duracao || 8;
+            document.getElementById('in-size-t').value = s.size_t;
+            document.getElementById('in-size-d').value = s.size_d || 40;
+            document.getElementById('in-size-p').value = s.size_p;
+            document.getElementById('in-w-prod').value = s.w_prod || 700;
+            document.getElementById('in-w-logo').value = s.w_logo || 200;
+            document.getElementById('in-orientation').value = s.orientation || "horizontal";
+            document.getElementById('in-dark').value = s.dark_intensity || 0.4;
+            if (auth.currentUser) document.getElementById('info-user').innerText = auth.currentUser.email;
+        }
+
+        function changeSlide(dir) {
+            state.current = (state.current + dir + state.slides.length) % state.slides.length;
+            render();
+        }
+
+        function cloneSlide() {
+            const clone = JSON.parse(JSON.stringify(state.slides[state.current]));
+            state.slides.push(clone);
+            state.current = state.slides.length - 1;
+            render();
+        }
+
+        function deleteCurrentSlide() {
+            if (state.slides.length > 1) {
+                state.slides.splice(state.current, 1);
+                state.current = 0;
+                render();
+            }
+        }
+
+        function startPlayer() {
+            clearTimeout(state.timer);
+            render();
+            if (!state.isEditor && state.slides.length > 1) {
+                state.timer = setTimeout(() => {
+                    state.current = (state.current + 1) % state.slides.length;
+                    startPlayer();
+                }, (state.slides[state.current].duracao || 8) * 1000);
+            }
+        }
+
+        async function handleAuthToggle() {
+            const user = auth.currentUser;
+            if (user && (user.uid === state.ownerUid || user.uid === ADMIN_ID)) {
+                toggleEditorMode();
+            } else {
+                const email = prompt("Email:");
+                const pass = prompt("Senha:");
+                if (email && pass) {
+                    try {
+                        await auth.signInWithEmailAndPassword(email, pass);
+                        toggleEditorMode();
+                    } catch (e) {
+                        alert("Acesso negado");
+                    }
+                }
+            }
+        }
+
+        function toggleEditorMode() {
+            state.isEditor = !state.isEditor;
+            document.body.classList.toggle('editor-active');
+            if (!state.isEditor) startPlayer();
+            else {
+                clearTimeout(state.timer);
+                render();
+            }
+            setTimeout(applyScaling, 100);
+        }
+
+        function applyScaling() {
+            const stage = document.getElementById('stage');
+            const vp = document.getElementById('viewport');
+            if (!stage || !vp) return;
+            const baseW = vp.offsetWidth;
+            const baseH = vp.offsetHeight;
+            const availableW = stage.offsetWidth - 40;
+            const availableH = stage.offsetHeight - 40;
+            state.scale = Math.min(availableW / baseW, availableH / baseH);
+            vp.style.transformOrigin = "center center";
+            vp.style.transform = `scale(${state.scale})`;
+        }
+
+        interact('.element').draggable({
+            listeners: {
+                move(event) {
+                    if (!state.isEditor) return;
+                    const key = event.target.dataset.key;
+                    state.slides[state.current][key].x += event.dx / state.scale;
+                    state.slides[state.current][key].y += event.dy / state.scale;
+                    render();
+                }
+            }
+        });
+
+        window.addEventListener('resize', applyScaling);
+
+        function logout() {
+            auth.signOut().then(() => location.reload());
+        }
     </script>
 </body>
 
