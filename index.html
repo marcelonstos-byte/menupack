@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Indoor Pro - V6.0 Full Array Sync</title>
+    <title>MenuPack Pro - Smart Indoor Editor</title>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -15,371 +15,428 @@
     <style>
          :root {
             --primary: #e63946;
+            --dark-bg: #121212;
+            --sidebar-bg: #1e1e1e;
+            --card-bg: #2a2a2a;
             --gold: #ffb703;
-            --accent: #00b4ff;
-            --dark: #0a0a0a;
-            --panel-w: 380px;
+            --accent: #457b9d;
+            --highlight: rgba(255, 183, 3, 0.25);
         }
         
-        * {
-            box-sizing: border-box;
+        body,
+        html {
             margin: 0;
             padding: 0;
-        }
-        
-        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
             background: #000;
-            color: #fff;
             font-family: 'Inter', sans-serif;
-            overflow: hidden;
-            height: 100vh;
+            display: flex;
         }
         
-        #main-container {
-            display: flex;
+        #editor-region {
+            flex: 1;
             height: 100vh;
-            width: 100vw;
-        }
-        
-        #stage {
-            flex-grow: 1;
             display: flex;
-            align-items: center;
             justify-content: center;
-            background: radial-gradient(circle, #1a1a1a 0%, #000 100%);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        #master-screen {
+            align-items: center;
+            background: #000;
+            /* Preto puro para exibição */
+            transition: padding 0.3s;
             position: relative;
         }
         
-        #viewport {
-            width: 1920px;
-            height: 1080px;
-            background-color: #111;
+        #canvas {
+            position: relative;
+            background: #111 no-repeat center center;
             background-size: cover;
-            background-position: center;
-            position: relative;
+            z-index: 1;
             overflow: hidden;
-            box-shadow: 0 0 100px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
+            width: 1280px;
+            height: 720px;
+            transform-origin: center;
         }
         
-        #dark-overlay {
+        body.portrait-mode #canvas {
+            width: 720px;
+            height: 1280px;
+        }
+        
+        #bg-filter {
             position: absolute;
             inset: 0;
-            background: #000;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 2;
             pointer-events: none;
-            z-index: 5;
-            opacity: 0.4;
         }
         
-        .element {
+        .draggable {
             position: absolute;
             z-index: 10;
-            cursor: default;
-            user-select: none;
-            will-change: transform;
-        }
-        
-        .editor-active .element {
             cursor: move;
-            outline: 2px dashed rgba(255, 255, 255, 0.3);
-            outline-offset: 5px;
+            transition: outline 0.2s;
+            transform-origin: top left;
+        }
+        /* Outline apenas quando o painel admin está visível */
+        
+        body:not(.hide-admin) .draggable:hover {
+            outline: 2px dashed var(--gold);
         }
         
-        .txt {
+        #logo-preview {
+            width: 150px;
+            min-height: 50px;
+        }
+        
+        #text-header {
+            color: white;
+            min-width: 300px;
+        }
+        
+        #text-header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            text-transform: uppercase;
+            color: var(--gold);
+            font-weight: 900;
+        }
+        
+        #text-header p {
+            margin: 0;
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+        
+        #preview-principal {
+            width: 400px;
+            height: 400px;
+            object-fit: contain;
+            transition: opacity 0.5s;
+        }
+        
+        #lista-container {
+            width: 450px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        #selector-highlight {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 72px;
+            background: var(--highlight);
+            border-left: 6px solid var(--gold);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .menu-item {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 15px;
+            color: #fff;
+            height: 36px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            z-index: 6;
+        }
+        
+        .item-nome {
+            font-size: 1.4rem;
             font-weight: 900;
             text-transform: uppercase;
-            line-height: 1.1;
-            white-space: nowrap;
         }
         
-        .element img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        
-        .anim-fade-in {
-            animation: fadeIn 1s ease forwards;
-        }
-        
-        .anim-slide-up {
-            animation: slideUp 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-        
-        .anim-zoom-in {
-            animation: zoomIn 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-        
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
-        
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translate(var(--tx), calc(var(--ty) + 100px));
-            }
-            to {
-                opacity: 1;
-                transform: translate(var(--tx), var(--ty));
-            }
-        }
-        
-        @keyframes zoomIn {
-            from {
-                opacity: 0;
-                transform: translate(var(--tx), var(--ty)) scale(0.5);
-            }
-            to {
-                opacity: 1;
-                transform: translate(var(--tx), var(--ty)) scale(1);
-            }
-        }
-        
-        #editor-panel {
-            width: var(--panel-w);
-            background: var(--dark);
-            border-left: 2px solid #222;
-            display: none;
-            flex-direction: column;
-            overflow-y: auto;
-            padding: 20px;
-            z-index: 1000;
-        }
-        
-        body.editor-active #editor-panel {
-            display: flex;
-        }
-        
-        .section {
-            background: #151515;
-            padding: 12px;
-            border-radius: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #222;
-        }
-        
-        h3 {
-            font-size: 11px;
+        .item-preco {
+            font-size: 1.4rem;
             color: var(--gold);
-            text-transform: uppercase;
+            font-weight: bold;
+        }
+        
+        #admin-panel {
+            width: 400px;
+            height: 100%;
+            background: var(--sidebar-bg);
+            color: #ecf0f1;
+            z-index: 1000;
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+        }
+        
+        .user-session-info {
+            background: #111;
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .session-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 8px;
+        }
+        
+        .session-label {
+            font-size: 9px;
+            color: #666;
+            text-transform: uppercase;
             letter-spacing: 1px;
         }
         
-        label {
-            font-size: 10px;
-            color: #777;
-            display: block;
-            margin-top: 8px;
+        .session-value {
+            font-size: 11px;
+            color: #eee;
+            font-weight: 600;
         }
         
-        input,
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #e63946;
+            border-radius: 50%;
+        }
+        
+        .status-dot.online {
+            background: #27ae60;
+            box-shadow: 0 0 5px #27ae60;
+        }
+        
+        .panel-header {
+            background: var(--dark-bg);
+            padding: 20px;
+            border-bottom: 2px solid var(--primary);
+        }
+        
+        .tab-menu {
+            display: flex;
+            background: #111;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            background: none;
+            color: white;
+            cursor: pointer;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        
+        .tab-btn.active {
+            border-bottom: 3px solid var(--primary);
+            background: var(--sidebar-bg);
+        }
+        
+        .panel-content {
+            padding: 20px;
+        }
+        
+        .input-group {
+            background: var(--card-bg);
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+        }
+        
+        .input-group label {
+            display: block;
+            font-size: 10px;
+            color: #bdc3c7;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        input[type="text"],
+        input[type="number"],
         select {
             width: 100%;
-            background: #000;
-            border: 1px solid #333;
-            color: #fff;
             padding: 8px;
-            border-radius: 6px;
-            margin-top: 4px;
-            font-size: 12px;
+            background: #000;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 5px;
         }
         
-        .row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        
-        .btn {
+        .btn-main {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             border: none;
-            border-radius: 8px;
-            font-weight: bold;
+            border-radius: 5px;
             cursor: pointer;
-            margin-top: 8px;
-            transition: 0.3s;
-        }
-        
-        .btn-save {
-            background: #3498db;
-            color: white;
-            margin-top: 15px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
         }
         
         .btn-publish {
-            background: #2ecc71;
+            background: var(--primary);
             color: white;
-            margin-top: 5px;
         }
         
-        .btn-outline {
-            background: #222;
-            color: #ccc;
-            font-size: 11px;
+        .btn-save {
+            background: var(--accent);
+            color: white;
         }
         
-        #config-trigger {
+        .btn-add {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .slide-selector {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        
+        .slide-thumb {
+            padding: 8px 15px;
+            background: #333;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 12px;
+        }
+        
+        .slide-thumb.active {
+            background: var(--primary);
+        }
+        /* BOTÃO DE CONFIGURAÇÃO DISCRETO NO CANTO DIREITO */
+        
+        .btn-toggle {
             position: fixed;
             bottom: 20px;
             right: 20px;
+            z-index: 2000;
             width: 45px;
             height: 45px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #333;
             border-radius: 50%;
+            background: rgba(42, 42, 42, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            color: white;
+            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            z-index: 2000;
+            transition: all 0.3s;
+            backdrop-filter: blur(5px);
         }
         
-        #status-bar {
-            position: fixed;
-            top: 15px;
-            left: 15px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 11px;
-            color: var(--accent);
-            z-index: 3000;
-            border: 1px solid #222;
+        .btn-toggle:hover {
+            background: var(--primary);
+            transform: rotate(90deg);
+            opacity: 1;
         }
         
-        .info-box {
-            font-size: 10px;
-            color: #aaa;
-            line-height: 1.4;
-        }
-        
-        .info-box span {
-            color: var(--accent);
-            word-break: break-all;
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
 
-<body>
-    <div id="status-bar">Sincronizando...</div>
-    <div id="config-trigger" onclick="handleAuthToggle()">⚙️</div>
+<body class="hide-admin">
 
-    <div id="main-container">
-        <div id="stage">
-            <div id="master-screen">
-                <div id="viewport">
-                    <div id="dark-overlay"></div>
-                    <div id="el-logo" class="element" data-key="pos_logo"><img id="v-logo"></div>
-                    <div id="el-prod" class="element" data-key="pos_prod"><img id="v-prod"></div>
-                    <div id="el-title" class="element" data-key="pos_title">
-                        <div id="v-title" class="txt">Produto</div>
-                    </div>
-                    <div id="el-desc" class="element" data-key="pos_desc">
-                        <div id="v-desc" class="txt" style="font-weight:400; text-transform:none;">Descrição</div>
-                    </div>
-                    <div id="el-price" class="element" data-key="pos_price">
-                        <div id="v-price" class="txt">R$ 0,00</div>
-                    </div>
+    <button class="btn-toggle" onclick="toggleAdmin()">⚙️</button>
+
+    <div id="editor-region">
+        <div id="canvas">
+            <div id="bg-filter"></div>
+            <img id="logo-preview" src="" class="draggable" data-key="logo">
+            <div id="text-header" class="draggable" data-key="header">
+                <h1 id="view-title">CARDÁPIO DO DIA</h1>
+                <p id="view-desc">Confira nossas ofertas especiais</p>
+            </div>
+            <img id="preview-principal" src="" class="draggable" data-key="img">
+            <div id="lista-container" class="draggable" data-key="lista">
+                <div id="selector-highlight"></div>
+                <div id="items-render"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-panel" class="hidden">
+        <div class="user-session-info">
+            <div class="session-row">
+                <span class="session-label">Sessão Ativa</span>
+                <button id="auth-btn" style="background:none; border:1px solid var(--primary); color:var(--primary); cursor:pointer; font-size:10px; padding:2px 8px;" onclick="toggleLogin()">Login</button>
+            </div>
+            <div class="session-row">
+                <div style="display:flex; align-items:center; gap:5px">
+                    <div id="status-dot" class="status-dot"></div>
+                    <span id="user-display" class="session-value">Desconectado</span>
                 </div>
+            </div>
+            <div class="session-row" style="margin-top:10px; border-top: 1px solid #333; padding-top: 8px;">
+                <span class="session-label">ID DA TV:</span>
+                <span id="display-device-id" class="session-value" style="color:var(--gold); cursor:pointer" onclick="changeDevicePrompt()">---</span>
             </div>
         </div>
 
-        <aside id="editor-panel">
-            <h2 style="font-size: 16px; margin-bottom: 5px;">Smart Indoor <span style="color:var(--primary)">PRO V6</span></h2>
+        <div class="panel-header">
+            <h3 style="margin:0">MenuPack <span style="color:var(--primary)">PRO</span></h3>
+        </div>
 
-            <div class="section" style="background: #000; border-color: #333;">
-                <h3>Identificação do Sistema</h3>
-                <div class="info-box">
-                    Conta: <span id="info-user">---</span><br> Tela: <span id="info-telinha">---</span><br> ID: <span id="info-id">---</span>
+        <div class="tab-menu">
+            <button class="tab-btn active" onclick="openTab('layout')">Layout</button>
+            <button class="tab-btn" onclick="openTab('produtos')">Produtos</button>
+            <button class="tab-btn" onclick="openTab('slides')">Slides</button>
+        </div>
+
+        <div class="panel-content">
+            <div id="tab-layout" class="tab-pane">
+                <div class="input-group">
+                    <label>Orientação</label>
+                    <select id="in-orientation" onchange="updateOrientation(this.value)">
+                        <option value="landscape">Paisagem (Horizontal)</option>
+                        <option value="portrait">Retrato (Vertical)</option>
+                    </select>
+                    <label>Fundo (URL)</label>
+                    <input type="text" id="in-bg" onchange="updateBase('bg', this.value)">
+                    <label>Logo (URL)</label>
+                    <input type="text" id="in-logo" onchange="updateBase('logo', this.value)">
+                </div>
+                <div class="input-group">
+                    <label>Textos Fixos</label>
+                    <input type="text" id="in-title" placeholder="Título" oninput="updateBase('title', this.value)">
+                    <input type="text" id="in-desc" placeholder="Descrição" oninput="updateBase('desc', this.value)">
+                </div>
+                <div class="input-group">
+                    <label>Escalas</label>
+                    <small>Logo</small> <input type="range" min="0.5" max="3" step="0.1" oninput="updateScale('logo', this.value)">
+                    <small>Textos</small> <input type="range" min="0.5" max="3" step="0.1" oninput="updateScale('header', this.value)">
+                    <small>Lista</small> <input type="range" min="0.5" max="3" step="0.1" oninput="updateScale('lista', this.value)">
                 </div>
             </div>
 
-            <div class="section">
-                <h3>Layout e Orientação</h3>
-                <label>Orientação da Tela</label>
-                <select id="in-orientation" onchange="updateLive('orientation', this.value)">
-                    <option value="horizontal">Horizontal (1920x1080)</option>
-                    <option value="vertical">Vertical (1080x1920)</option>
-                </select>
-                <label>Intensidade do Filtro Escuro</label>
-                <input type="range" min="0" max="1" step="0.1" id="in-dark" oninput="updateLive('dark_intensity', parseFloat(this.value))">
+            <div id="tab-produtos" class="tab-pane hidden">
+                <div id="admin-items-list"></div>
+                <button class="btn-main btn-add" onclick="addItem()">+ Adicionar Produto</button>
             </div>
 
-            <div class="section">
-                <h3>Navegação Slides</h3>
-                <div class="row">
-                    <button class="btn btn-outline" onclick="changeSlide(-1)">◀</button>
-                    <span id="slide-index" style="font-size:12px; min-width:40px; text-align:center;">1 / 1</span>
-                    <button class="btn btn-outline" onclick="changeSlide(1)">▶</button>
-                </div>
-                <button class="btn btn-outline" style="background:var(--accent); color:black;" onclick="cloneSlide()">+ Clonar Slide</button>
+            <div id="tab-slides" class="tab-pane hidden">
+                <div class="slide-selector" id="slide-nav"></div>
+                <button class="btn-main btn-add" onclick="duplicateSlide()">Duplicar Slide</button>
+                <button class="btn-main" style="background:#c0392b; color:white" onclick="deleteSlide()">Excluir Slide</button>
             </div>
 
-            <div class="section">
-                <h3>Configurações do Slide</h3>
-                <label>Duração (segundos)</label>
-                <input type="number" id="in-duracao" oninput="updateLive('duracao', parseInt(this.value))">
-                <label>Animação</label>
-                <select id="in-anim" onchange="updateLive('anim_type', this.value)">
-                    <option value="anim-fade-in">Fade-in</option>
-                    <option value="anim-slide-up">Slide Up</option>
-                    <option value="anim-zoom-in">Zoom In</option>
-                </select>
-            </div>
-
-            <div class="section">
-                <h3>Textos</h3>
-                <label>Título (Nome)</label>
-                <input type="text" id="in-title" oninput="updateLive('nome', this.value)">
-                <div class="row">
-                    <input type="color" id="in-color-t" oninput="updateLive('color_t', this.value)">
-                    <input type="range" min="20" max="300" id="in-size-t" oninput="updateLive('size_t', parseInt(this.value))">
-                </div>
-                <label>Descrição</label>
-                <input type="text" id="in-desc" oninput="updateLive('descricao', this.value)">
-                <div class="row">
-                    <input type="color" id="in-color-d" oninput="updateLive('color_d', this.value)">
-                    <input type="range" min="10" max="200" id="in-size-d" oninput="updateLive('size_d', parseInt(this.value))">
-                </div>
-                <label>Preço</label>
-                <input type="text" id="in-price" oninput="updateLive('preco', this.value)">
-                <div class="row">
-                    <input type="color" id="in-color-p" oninput="updateLive('color_p', this.value)">
-                    <input type="range" min="20" max="350" id="in-size-p" oninput="updateLive('size_p', parseInt(this.value))">
-                </div>
-            </div>
-
-            <div class="section">
-                <h3>Mídias e Tamanhos</h3>
-                <label>URL Imagem Produto</label>
-                <input type="text" id="in-img" oninput="updateLive('url', this.value)">
-                <label>Tamanho Produto</label>
-                <input type="range" min="50" max="1500" id="in-w-prod" oninput="updateLive('w_prod', parseInt(this.value))">
-                <label>URL Logo</label>
-                <input type="text" id="in-logo" oninput="updateLive('logo_url', this.value)">
-                <label>Tamanho Logo</label>
-                <input type="range" min="20" max="800" id="in-w-logo" oninput="updateLive('w_logo', parseInt(this.value))">
-                <label>URL Background</label>
-                <input type="text" id="in-bg" oninput="updateLive('bg', this.value)">
-            </div>
-
-            <button class="btn btn-save" onclick="salvarRascunho()">💾 SALVAR EDIÇÕES</button>
-            <button class="btn btn-publish" onclick="publicarNaPlaylist()">🚀 PUBLICAR NA PLAYLIST</button>
-            <button class="btn btn-outline" onclick="deleteCurrentSlide()" style="color: var(--primary); margin-top: 15px;">Excluir Slide</button>
-            <button class="btn btn-outline" onclick="logout()" style="margin-top: 10px; opacity: 0.5;">Sair</button>
-        </aside>
+            <hr style="border:0; border-top: 1px dashed #444; margin: 20px 0;">
+            <button class="btn-main btn-save" onclick="salvarRascunho()">Sincronizar Nuvem</button>
+            <button class="btn-main btn-publish" onclick="publicarNaPlaylist()">Publicar na TV Agora</button>
+        </div>
     </div>
 
     <script>
@@ -389,319 +446,338 @@
             projectId: "newsmartonapp",
             storageBucket: "newsmartonapp.firebasestorage.app",
             messagingSenderId: "1096968028299",
-            appId: "1:1096968028299:web:f3a9e48db108afbbb7548e"
+            appId: "1:1096968028299:web:f3a9e48db108afbbb7548e",
+            databaseURL: "https://newsmartonapp-default-rtdb.firebaseio.com"
         };
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
 
-        let state = {
-            slides: [],
-            current: 0,
-            isEditor: false,
-            scale: 1,
-            ownerUid: '',
-            deviceId: new URLSearchParams(window.location.search).get('id') || localStorage.getItem('lastId'),
-            timer: null
+        let appState = {
+            deviceId: "SVbuSWCNoO42VqDPEmYg",
+            ownerUid: null,
+            currentUser: null,
+            currentSlide: 0,
+            activeItemIdx: 0,
+            slides: [{
+                nome: "Menu Principal",
+                duracao: 15,
+                orientation: "landscape",
+                logo: "https://cdn-icons-png.flaticon.com/512/732/732217.png",
+                title: "MENU ESPECIAL",
+                desc: "Confira nossas ofertas",
+                bg: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=1920",
+                scales: {
+                    logo: 1,
+                    header: 1,
+                    img: 1,
+                    lista: 1
+                },
+                pos: {
+                    lista: {
+                        x: 750,
+                        y: 150
+                    },
+                    img: {
+                        x: 100,
+                        y: 150
+                    },
+                    logo: {
+                        x: 50,
+                        y: 30
+                    },
+                    header: {
+                        x: 250,
+                        y: 40
+                    }
+                },
+                lista: [{
+                    nome: "Item Exemplo",
+                    preco: "35,00",
+                    img: ""
+                }]
+            }]
         };
 
-        const ADMIN_ID = "DrzBYJWuNAOoAIRGWfrsKdVFhYr2";
+        async function init() {
+            document.getElementById('display-device-id').innerText = appState.deviceId;
 
-        if (state.deviceId) {
-            localStorage.setItem('lastId', state.deviceId);
-            initData();
-        }
-
-        async function initData() {
-            try {
-                const snap = await db.collectionGroup('dispositivos').get();
-                const deviceDoc = snap.docs.find(d => d.id === state.deviceId);
-
-                if (deviceDoc) {
-                    state.ownerUid = deviceDoc.ref.parent.parent.id;
-                    document.getElementById('info-id').innerText = state.deviceId;
-                    document.getElementById('info-telinha').innerText = deviceDoc.data().nomeTela || "Sem nome";
-
-                    db.doc(`usuarios/${state.ownerUid}/dispositivos/${state.deviceId}/MenuOnly/data`)
-                        .onSnapshot(doc => {
-                            if (doc.exists) {
-                                const incomingSlides = doc.data().slides;
-                                if (incomingSlides && incomingSlides.length > 0 && !state.isEditor) {
-                                    state.slides = incomingSlides;
-                                    startPlayer();
-                                } else if (state.slides.length === 0) {
-                                    state.slides = incomingSlides || [getDefaultTemplate()];
-                                    render();
-                                }
-                            } else if (state.slides.length === 0) {
-                                state.slides = [getDefaultTemplate()];
-                                render();
+            if (appState.ownerUid) {
+                db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}/MenuPack/data`)
+                    .onSnapshot(doc => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            if (data.slides) {
+                                appState.slides = data.slides;
+                                loadSlide(appState.currentSlide);
                             }
-                            document.getElementById('status-bar').style.display = 'none';
-                        });
-                } else {
-                    document.getElementById('status-bar').innerText = "Erro: Dispositivo não encontrado";
-                }
-            } catch (error) {
-                console.error("Erro no initData:", error);
+                        }
+                    });
             }
+
+            loadSlide(0);
+            startRotation();
+            applyScaling();
+            window.addEventListener('resize', applyScaling);
         }
 
-        function getDefaultTemplate() {
-            return {
-                nome: "NOVO PRODUTO",
-                orientation: "horizontal",
-                color_t: "#ffffff",
-                size_t: 100,
-                descricao: "Descrição do item",
-                color_d: "#cccccc",
-                size_d: 40,
-                preco: "19,90",
-                color_p: "#ffb703",
-                size_p: 120,
-                url: "",
-                w_prod: 700,
-                logo_url: "",
-                w_logo: 200,
-                bg: "",
-                dark_intensity: 0.4,
-                anim_type: "anim-fade-in",
-                duracao: 8,
-                pos_title: {
-                    x: 100,
-                    y: 150
-                },
-                pos_desc: {
-                    x: 100,
-                    y: 300
-                },
-                pos_price: {
-                    x: 100,
-                    y: 550
-                },
-                pos_prod: {
-                    x: 1000,
-                    y: 100
-                },
-                pos_logo: {
-                    x: 50,
-                    y: 50
-                }
-            };
+        function loadSlide(idx) {
+            appState.currentSlide = idx;
+            const s = appState.slides[idx];
+            if (!s) return;
+
+            document.getElementById('in-bg').value = s.bg;
+            document.getElementById('in-logo').value = s.logo;
+            document.getElementById('in-title').value = s.title;
+            document.getElementById('in-desc').value = s.desc;
+            document.getElementById('in-orientation').value = s.orientation;
+
+            updateOrientation(s.orientation);
+            render();
+            renderAdmin();
+            renderSlideNav();
+            applyPositionsAndScales();
         }
 
         function render() {
-            const s = state.slides[state.current];
-            if (!s) return;
+            const s = appState.slides[appState.currentSlide];
+            document.getElementById('canvas').style.backgroundImage = `url('${s.bg}')`;
+            document.getElementById('logo-preview').src = s.logo;
+            document.getElementById('view-title').innerText = s.title;
+            document.getElementById('view-desc').innerText = s.desc;
 
-            const vp = document.getElementById('viewport');
+            const list = document.getElementById('items-render');
+            list.innerHTML = s.lista.map(item => `
+                <div class="menu-item">
+                    <span class="item-nome">${item.nome}</span>
+                    <span class="item-preco">R$ ${item.preco}</span>
+                </div>
+            `).join('');
+            updateHighlight();
+        }
 
-            if (s.orientation === "vertical") {
-                vp.style.width = "1080px";
-                vp.style.height = "1920px";
-            } else {
-                vp.style.width = "1920px";
-                vp.style.height = "1080px";
-            }
-
-            vp.style.backgroundImage = s.bg ? `url('${s.bg}')` : 'none';
-            document.getElementById('dark-overlay').style.opacity = s.dark_intensity;
-
-            const mapText = (id, text, color, size) => {
-                const el = document.getElementById(id);
-                el.innerText = text;
-                el.style.color = color;
-                el.style.fontSize = size + "px";
-            };
-
-            mapText('v-title', s.nome, s.color_t, s.size_t);
-            mapText('v-desc', s.descricao, s.color_d, s.size_d);
-            mapText('v-price', "R$ " + s.preco, s.color_p, s.size_p);
-
-            const imgProd = document.getElementById('v-prod');
-            imgProd.src = s.url || '';
-            imgProd.parentElement.style.width = (s.w_prod || 700) + "px";
-
-            const imgLogo = document.getElementById('v-logo');
-            imgLogo.src = s.logo_url || '';
-            imgLogo.parentElement.style.width = (s.w_logo || 200) + "px";
-
-            Object.keys(s).forEach(key => {
-                if (key.startsWith('pos_')) {
-                    const el = document.getElementById(key.replace('pos_', 'el-'));
-                    if (el) {
-                        el.style.setProperty('--tx', `${s[key].x}px`);
-                        el.style.setProperty('--ty', `${s[key].y}px`);
-                        el.style.transform = `translate(${s[key].x}px, ${s[key].y}px)`;
-
-                        if (!state.isEditor) {
-                            el.classList.remove('anim-fade-in', 'anim-slide-up', 'anim-zoom-in');
-                            void el.offsetWidth;
-                            el.classList.add(s.anim_type || 'anim-fade-in');
-                        }
-                    }
-                }
+        function applyPositionsAndScales() {
+            const s = appState.slides[appState.currentSlide];
+            document.querySelectorAll('.draggable').forEach(el => {
+                const key = el.getAttribute('data-key');
+                const p = s.pos[key];
+                const scale = s.scales[key] || 1;
+                el.style.transform = `translate(${p.x}px, ${p.y}px) scale(${scale})`;
+                el.setAttribute('data-x', p.x);
+                el.setAttribute('data-y', p.y);
             });
+        }
 
-            if (state.isEditor) syncPanelInputs();
-            setTimeout(applyScaling, 10);
+        interact('.draggable').draggable({
+            listeners: {
+                move(event) {
+                    const t = event.target;
+                    const key = t.getAttribute('data-key');
+                    const x = (parseFloat(t.getAttribute('data-x')) || 0) + event.dx;
+                    const y = (parseFloat(t.getAttribute('data-y')) || 0) + event.dy;
+
+                    appState.slides[appState.currentSlide].pos[key] = {
+                        x,
+                        y
+                    };
+                    const scale = appState.slides[appState.currentSlide].scales[key] || 1;
+
+                    t.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+                    t.setAttribute('data-x', x);
+                    t.setAttribute('data-y', y);
+                }
+            }
+        });
+
+        function updateBase(f, v) {
+            appState.slides[appState.currentSlide][f] = v;
+            render();
+        }
+
+        function updateScale(key, val) {
+            appState.slides[appState.currentSlide].scales[key] = val;
+            applyPositionsAndScales();
+        }
+
+        function updateOrientation(mode) {
+            appState.slides[appState.currentSlide].orientation = mode;
+            document.body.classList.toggle('portrait-mode', mode === 'portrait');
+            setTimeout(applyScaling, 100);
+        }
+
+        function applyScaling() {
+            const region = document.getElementById('editor-region');
+            const canvas = document.getElementById('canvas');
+            const isAdminVisible = !document.getElementById('admin-panel').classList.contains('hidden');
+
+            // Ajusta o cálculo baseado na largura disponível
+            const availableWidth = isAdminVisible ? region.offsetWidth : window.innerWidth;
+            const availableHeight = window.innerHeight;
+
+            const scale = Math.min((availableWidth - 40) / canvas.offsetWidth, (availableHeight - 40) / canvas.offsetHeight);
+            canvas.style.transform = `scale(${scale})`;
         }
 
         async function salvarRascunho() {
-            if (!state.ownerUid) return;
+            if (!appState.currentUser) return alert("Faça login primeiro!");
+            const path = `usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}/MenuPack/data`;
             try {
-                await db.doc(`usuarios/${state.ownerUid}/dispositivos/${state.deviceId}/MenuOnly/data`).set({
-                    slides: state.slides,
+                await db.doc(path).set({
+                    slides: appState.slides,
                     lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
+                }, {
+                    merge: true
                 });
-                alert("✅ Design salvo com sucesso!");
+                alert("✅ Rascunho sincronizado!");
+                return true;
             } catch (e) {
-                alert("Erro ao salvar: " + e.message);
+                console.error(e);
+                alert("Erro ao salvar.");
+                return false;
             }
         }
 
         async function publicarNaPlaylist() {
-            if (!state.ownerUid || !state.deviceId) return;
-            const slideAtual = state.slides[state.current];
-            const finalUrl = `https://marcelonstos-byte.github.io/menudigital?id=${state.deviceId}`;
-            const duracaoTotal = state.slides.reduce((total, slide) => total + (parseInt(slide.duracao) || 8), 0);
-
-            const novaMidia = {
-                nome: slideAtual.nome || "Menu Digital",
-                url: finalUrl,
-                tipo: "Menu",
-                duracao: duracaoTotal,
-                ativo: true,
-                origem: "EDITOR_V6"
-            };
-
+            if (!appState.currentUser) return alert("Faça login primeiro!");
+            const salvo = await salvarRascunho();
+            if (!salvo) return;
             try {
-                const ref = db.doc(`usuarios/${state.ownerUid}/dispositivos/${state.deviceId}`);
+                const totalDur = appState.slides.reduce((t, s) => t + (parseInt(s.duracao) || 10), 0);
+                const novaMidia = {
+                    nome: "Menu Digital - " + new Date().toLocaleTimeString(),
+                    url: `https://marcelonstos-byte.github.io/menupack/?id=${appState.deviceId}&owner=${appState.ownerUid}`,
+                    tipo: "Menu",
+                    duracao: totalDur,
+                    ativo: true,
+                    timestamp: new Date().toISOString()
+                };
+                const ref = db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}`);
                 await ref.update({
-                    midias: firebase.firestore.FieldValue.arrayUnion(novaMidia)
+                    midias: firebase.firestore.FieldValue.arrayUnion(novaMidia),
+                    lastActive: new Date().toISOString()
                 });
-                alert(`🚀 Mídia publicada na playlist!`);
+                alert("🚀 Publicado na TV!");
             } catch (e) {
                 alert("Erro ao publicar: " + e.message);
             }
         }
 
-        function updateLive(field, value) {
-            state.slides[state.current][field] = value;
+        function renderAdmin() {
+            const s = appState.slides[appState.currentSlide];
+            const div = document.getElementById('admin-items-list');
+            div.innerHTML = s.lista.map((item, i) => `
+                <div class="input-group">
+                    <input type="text" value="${item.nome}" oninput="updateItem(${i}, 'nome', this.value)" placeholder="Nome">
+                    <input type="text" value="${item.preco}" oninput="updateItem(${i}, 'preco', this.value)" placeholder="Preço">
+                    <input type="text" value="${item.img}" onchange="updateItem(${i}, 'img', this.value)" placeholder="URL Imagem">
+                    <button onclick="removeItem(${i})" style="color:red; background:none; border:none; cursor:pointer; font-size:10px">Remover</button>
+                </div>
+            `).join('');
+        }
+
+        function updateItem(i, f, v) {
+            appState.slides[appState.currentSlide].lista[i][f] = v;
             render();
         }
 
-        function syncPanelInputs() {
-            const s = state.slides[state.current];
-            document.getElementById('slide-index').innerText = `${state.current + 1} / ${state.slides.length}`;
-            document.getElementById('in-title').value = s.nome;
-            document.getElementById('in-desc').value = s.descricao;
-            document.getElementById('in-price').value = s.preco;
-            document.getElementById('in-img').value = s.url;
-            document.getElementById('in-logo').value = s.logo_url || "";
-            document.getElementById('in-bg').value = s.bg;
-            document.getElementById('in-duracao').value = s.duracao || 8;
-            document.getElementById('in-size-t').value = s.size_t;
-            document.getElementById('in-size-d').value = s.size_d || 40;
-            document.getElementById('in-size-p').value = s.size_p;
-            document.getElementById('in-w-prod').value = s.w_prod || 700;
-            document.getElementById('in-w-logo').value = s.w_logo || 200;
-            document.getElementById('in-orientation').value = s.orientation || "horizontal";
-            document.getElementById('in-dark').value = s.dark_intensity || 0.4;
-            if (auth.currentUser) document.getElementById('info-user').innerText = auth.currentUser.email;
-        }
-
-        function changeSlide(dir) {
-            state.current = (state.current + dir + state.slides.length) % state.slides.length;
+        function addItem() {
+            appState.slides[appState.currentSlide].lista.push({
+                nome: "Novo Item",
+                preco: "0,00",
+                img: ""
+            });
+            renderAdmin();
             render();
         }
 
-        function cloneSlide() {
-            const clone = JSON.parse(JSON.stringify(state.slides[state.current]));
-            state.slides.push(clone);
-            state.current = state.slides.length - 1;
+        function removeItem(i) {
+            appState.slides[appState.currentSlide].lista.splice(i, 1);
+            renderAdmin();
             render();
         }
 
-        function deleteCurrentSlide() {
-            if (state.slides.length > 1) {
-                state.slides.splice(state.current, 1);
-                state.current = 0;
-                render();
+        function duplicateSlide() {
+            const clone = JSON.parse(JSON.stringify(appState.slides[appState.currentSlide]));
+            appState.slides.push(clone);
+            loadSlide(appState.slides.length - 1);
+        }
+
+        function deleteSlide() {
+            if (appState.slides.length > 1) {
+                appState.slides.splice(appState.currentSlide, 1);
+                loadSlide(0);
             }
         }
 
-        function startPlayer() {
-            clearTimeout(state.timer);
-            render();
-            if (!state.isEditor && state.slides.length > 1) {
-                state.timer = setTimeout(() => {
-                    state.current = (state.current + 1) % state.slides.length;
-                    startPlayer();
-                }, (state.slides[state.current].duracao || 8) * 1000);
-            }
+        function renderSlideNav() {
+            const nav = document.getElementById('slide-nav');
+            nav.innerHTML = appState.slides.map((_, i) => `
+                <div class="slide-thumb ${i === appState.currentSlide ? 'active' : ''}" onclick="loadSlide(${i})">Slide ${i+1}</div>
+            `).join('');
         }
 
-        async function handleAuthToggle() {
-            const user = auth.currentUser;
-            if (user && (user.uid === state.ownerUid || user.uid === ADMIN_ID)) {
-                toggleEditorMode();
-            } else {
-                const email = prompt("Email:");
-                const pass = prompt("Senha:");
-                if (email && pass) {
-                    try {
-                        await auth.signInWithEmailAndPassword(email, pass);
-                        toggleEditorMode();
-                    } catch (e) {
-                        alert("Acesso negado");
-                    }
+        function toggleAdmin() {
+            const p = document.getElementById('admin-panel');
+            const isHidden = p.classList.toggle('hidden');
+            document.body.classList.toggle('hide-admin', isHidden);
+            setTimeout(applyScaling, 300);
+        }
+
+        function openTab(t) {
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + t).classList.remove('hidden');
+            event.currentTarget.classList.add('active');
+        }
+
+        function updateHighlight() {
+            const s = appState.slides[appState.currentSlide];
+            const h = document.getElementById('selector-highlight');
+            const img = document.getElementById('preview-principal');
+            if (!s.lista.length) return;
+            h.style.transform = `translateY(${appState.activeItemIdx * 72}px)`;
+            img.style.opacity = '0';
+            setTimeout(() => {
+                img.src = s.lista[appState.activeItemIdx].img || 'https://via.placeholder.com/400?text=MenuPack';
+                img.style.opacity = '1';
+            }, 300);
+        }
+
+        function startRotation() {
+            setInterval(() => {
+                const s = appState.slides[appState.currentSlide];
+                if (s.lista.length > 0) {
+                    appState.activeItemIdx = (appState.activeItemIdx + 1) % s.lista.length;
+                    updateHighlight();
                 }
+            }, 5000);
+        }
+
+        function changeDevicePrompt() {
+            const id = prompt("ID da TV:", appState.deviceId);
+            if (id) {
+                appState.deviceId = id;
+                document.getElementById('display-device-id').innerText = id;
+                init();
             }
         }
 
-        function toggleEditorMode() {
-            state.isEditor = !state.isEditor;
-            document.body.classList.toggle('editor-active');
-            if (!state.isEditor) startPlayer();
-            else {
-                clearTimeout(state.timer);
-                render();
-            }
-            setTimeout(applyScaling, 100);
+        function toggleLogin() {
+            if (appState.currentUser) auth.signOut();
+            else auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
         }
 
-        function applyScaling() {
-            const stage = document.getElementById('stage');
-            const vp = document.getElementById('viewport');
-            if (!stage || !vp) return;
-            const baseW = vp.offsetWidth;
-            const baseH = vp.offsetHeight;
-            const availableW = stage.offsetWidth - 40;
-            const availableH = stage.offsetHeight - 40;
-            state.scale = Math.min(availableW / baseW, availableH / baseH);
-            vp.style.transformOrigin = "center center";
-            vp.style.transform = `scale(${state.scale})`;
-        }
-
-        interact('.element').draggable({
-            listeners: {
-                move(event) {
-                    if (!state.isEditor) return;
-                    const key = event.target.dataset.key;
-                    state.slides[state.current][key].x += event.dx / state.scale;
-                    state.slides[state.current][key].y += event.dy / state.scale;
-                    render();
-                }
-            }
+        auth.onAuthStateChanged(user => {
+            appState.currentUser = user;
+            appState.ownerUid = user ? user.uid : null;
+            document.getElementById('status-dot').classList.toggle('online', !!user);
+            document.getElementById('user-display').innerText = user ? user.email : "Desconectado";
+            document.getElementById('auth-btn').innerText = user ? "Sair" : "Login";
+            if (user) init();
         });
 
-        window.addEventListener('resize', applyScaling);
-
-        function logout() {
-            auth.signOut().then(() => location.reload());
-        }
+        window.onload = init;
     </script>
 </body>
 
