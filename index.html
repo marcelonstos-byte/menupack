@@ -465,11 +465,12 @@
             currentSlide: 0,
             activeItemIdx: 0,
             autoSaveTimer: null,
-            isEditor: true, // Define se está em modo edição
+            slideRotationTimer: null, // Timer para troca de slides
+            isEditor: true,
             slides: []
         };
 
-        // Template padrão unificado com os novos campos
+        // Template padrão unificado
         function getDefaultTemplate() {
             return {
                 nome: "NOVO SLIDE",
@@ -480,7 +481,7 @@
                 title: "MENU ESPECIAL",
                 desc: "Confira nossas ofertas",
                 preco: "19,90",
-                url: "", // URL da imagem do produto em destaque
+                url: "",
                 dark_intensity: 0.4,
                 anim_type: "anim-fade-in",
                 scales: {
@@ -520,18 +521,33 @@
             };
         }
 
+        // Gerencia a "Cortina Preta" de carregamento
+        function toggleLoader(show) {
+            let loader = document.getElementById('loading-screen');
+            if (!loader) {
+                loader = document.createElement('div');
+                loader.id = 'loading-screen';
+                loader.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:black; color:white; display:flex; align-items:center; justify-content:center; z-index:9999; font-family:sans-serif; transition: opacity 0.5s;";
+                loader.innerHTML = "<div><h2 style='text-align:center'>Carregando Menu...</h2></div>";
+                document.body.appendChild(loader);
+            }
+            if (!show) {
+                loader.style.opacity = "0";
+                setTimeout(() => loader.remove(), 500);
+            }
+        }
+
         async function init() {
+            toggleLoader(true); // Ativa a cortina
             document.getElementById('display-device-id').innerText = appState.deviceId;
 
             try {
-                // Tenta localizar o dono do dispositivo automaticamente
                 const snap = await db.collectionGroup('dispositivos').get();
                 const deviceDoc = snap.docs.find(d => d.id === appState.deviceId);
 
                 if (deviceDoc) {
                     appState.ownerUid = deviceDoc.ref.parent.parent.id;
 
-                    // Listener em tempo real para os dados do menu
                     db.doc(`usuarios/${appState.ownerUid}/dispositivos/${appState.deviceId}/MenuPack/data`)
                         .onSnapshot(doc => {
                             if (doc.exists) {
@@ -542,22 +558,42 @@
                             } else if (appState.slides.length === 0) {
                                 appState.slides = [getDefaultTemplate()];
                             }
+
                             loadSlide(appState.currentSlide);
+                            startSlideRotation(); // Inicia o carrossel automático
+                            toggleLoader(false); // Remove a cortina após carregar
                         });
                 } else {
-                    console.error("Dispositivo não encontrado no banco de dados.");
+                    console.error("Dispositivo não encontrado.");
                     if (appState.slides.length === 0) appState.slides = [getDefaultTemplate()];
                     loadSlide(0);
+                    toggleLoader(false);
                 }
             } catch (error) {
                 console.error("Erro no init:", error);
+                toggleLoader(false);
             }
 
             applyScaling();
             window.addEventListener('resize', applyScaling);
         }
 
-        // --- ROTAÇÃO DE DESTAQUE ---
+        // --- LÓGICA DE ROTAÇÃO AUTOMÁTICA DE SLIDES ---
+        function startSlideRotation() {
+            clearTimeout(appState.slideRotationTimer);
+
+            const currentSlideData = appState.slides[appState.currentSlide];
+            const tempoExibicao = (parseInt(currentSlideData.duracao) || 15) * 1000;
+
+            appState.slideRotationTimer = setTimeout(() => {
+                // Avança para o próximo slide
+                appState.currentSlide = (appState.currentSlide + 1) % appState.slides.length;
+                loadSlide(appState.currentSlide);
+                startSlideRotation(); // Recursivo para o próximo
+            }, tempoExibicao);
+        }
+
+        // --- ROTAÇÃO DE DESTAQUE (ITENS DENTRO DO SLIDE) ---
         setInterval(() => {
             const s = appState.slides[appState.currentSlide];
             if (s && s.lista && s.lista.length > 1) {
@@ -572,7 +608,6 @@
             const s = appState.slides[idx];
             if (!s) return;
 
-            // Atualiza inputs do painel (se existirem)
             const inputs = {
                 'in-bg': s.bg,
                 'in-logo': s.logo_url,
@@ -604,11 +639,9 @@
             const canvas = document.getElementById('canvas');
             canvas.style.backgroundImage = s.bg ? `url('${s.bg}')` : 'none';
 
-            // Overlay escuro (se houver o elemento)
             const overlay = document.getElementById('dark-overlay');
             if (overlay) overlay.style.opacity = s.dark_intensity || 0;
 
-            // Textos e Imagens principais
             const logo = document.getElementById('logo-preview');
             if (logo) logo.src = s.logo_url || '';
 
@@ -618,17 +651,15 @@
             const desc = document.getElementById('view-desc');
             if (desc) desc.innerText = s.desc || '';
 
-            // Renderização da Lista
             const list = document.getElementById('items-render');
             if (list && s.lista) {
                 list.innerHTML = s.lista.map(item => `
-                    <div class="menu-item">
-                        <span class="item-nome">${item.nome}</span>
-                        <span class="item-preco">R$ ${item.preco}</span>
-                    </div>
-                `).join('');
+                <div class="menu-item">
+                    <span class="item-nome">${item.nome}</span>
+                    <span class="item-preco">R$ ${item.preco}</span>
+                </div>
+            `).join('');
             }
-
             updateHighlight();
         }
 
@@ -648,10 +679,9 @@
                 el.setAttribute('data-x', p.x);
                 el.setAttribute('data-y', p.y);
 
-                // Aplica animação se não estiver no editor
                 if (!appState.isEditor) {
                     el.classList.remove('anim-fade-in', 'anim-slide-up', 'anim-zoom-in');
-                    void el.offsetWidth; // Trigger reflow
+                    void el.offsetWidth;
                     el.classList.add(s.anim_type || 'anim-fade-in');
                 }
             });
@@ -674,7 +704,6 @@
                     t.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
                     t.setAttribute('data-x', x);
                     t.setAttribute('data-y', y);
-
                     triggerAutoSave();
                 }
             }
@@ -688,13 +717,15 @@
         }
 
         function updateBase(f, v) {
-            // Mapeamento para suportar nomes de campos antigos e novos
             const fieldMap = {
                 'logo': 'logo_url'
             };
             const field = fieldMap[f] || f;
-
             appState.slides[appState.currentSlide][field] = v;
+
+            // Se mudar a duração, reinicia o timer de rotação
+            if (f === 'duracao') startSlideRotation();
+
             render();
             triggerAutoSave();
         }
@@ -740,39 +771,36 @@
 
                 if (!isAuto && btn) {
                     btn.innerText = "Sincronizar Nuvem";
-                    alert("✅ Sincronizado com a Nuvem!");
+                    alert("✅ Sincronizado!");
                 }
                 return true;
             } catch (e) {
                 console.error(e);
-                if (!isAuto) alert("Erro ao salvar.");
                 return false;
             }
         }
 
         async function publicarNaPlaylist() {
-            if (!appState.ownerUid || !appState.deviceId) return alert("Faça login primeiro.");
+            if (!appState.ownerUid || !appState.deviceId) return alert("Faça login.");
 
             const btn = document.getElementById('btn-pub');
             btn.disabled = true;
             btn.innerText = "🚀 Publicando...";
 
-            const salvo = await salvarRascunho(true);
-            if (!salvo) {
-                btn.disabled = false;
-                return;
-            }
+            await salvarRascunho(true);
 
             try {
                 const slideAtual = appState.slides[appState.currentSlide];
                 const finalUrl = `https://marcelonstos-byte.github.io/menupack/?id=${appState.deviceId}`;
-                const duracaoTotal = appState.slides.reduce((total, slide) => total + (parseInt(slide.duracao) || 15), 0);
+
+                // CÁLCULO DINÂMICO DA DURAÇÃO TOTAL
+                const duracaoTotal = appState.slides.reduce((acc, slide) => acc + (parseInt(slide.duracao) || 15), 0);
 
                 const novaMidia = {
                     nome: "Menu Digital - " + (slideAtual.title || "Sem Título"),
                     url: finalUrl,
                     tipo: "Menu",
-                    duracao: duracaoTotal,
+                    duracao: duracaoTotal, // Envia a soma de todos os slides
                     ativo: true,
                     timestamp: new Date().toISOString(),
                     origem: "EDITOR_PRO_V1"
@@ -783,9 +811,9 @@
                     lastActive: new Date().toISOString()
                 });
 
-                alert("🚀 Sucesso! O Menu foi enviado para a fila da TV.");
+                alert("🚀 Enviado para a TV! Duração total da playlist: " + duracaoTotal + "s");
             } catch (e) {
-                alert("Erro ao publicar: " + e.message);
+                alert("Erro: " + e.message);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Publicar na TV Agora";
@@ -798,13 +826,13 @@
             if (!div) return;
 
             div.innerHTML = s.lista.map((item, i) => `
-                <div class="input-group">
-                    <input type="text" value="${item.nome}" oninput="updateItem(${i}, 'nome', this.value)" placeholder="Nome">
-                    <input type="text" value="${item.preco}" oninput="updateItem(${i}, 'preco', this.value)" placeholder="Preço">
-                    <input type="text" value="${item.img}" onchange="updateItem(${i}, 'img', this.value)" placeholder="URL Imagem do Produto">
-                    <button onclick="removeItem(${i})" style="color:red; background:none; border:none; cursor:pointer; font-size:10px; margin-top:5px">🗑 Remover Item</button>
-                </div>
-            `).join('');
+            <div class="input-group">
+                <input type="text" value="${item.nome}" oninput="updateItem(${i}, 'nome', this.value)" placeholder="Nome">
+                <input type="text" value="${item.preco}" oninput="updateItem(${i}, 'preco', this.value)" placeholder="Preço">
+                <input type="text" value="${item.img}" onchange="updateItem(${i}, 'img', this.value)" placeholder="URL Imagem">
+                <button onclick="removeItem(${i})" style="color:red; cursor:pointer; font-size:10px;">🗑 Remover</button>
+            </div>
+        `).join('');
         }
 
         function updateItem(i, f, v) {
@@ -825,7 +853,7 @@
         }
 
         function removeItem(i) {
-            if (confirm("Deseja remover este item?")) {
+            if (confirm("Remover item?")) {
                 appState.slides[appState.currentSlide].lista.splice(i, 1);
                 renderAdmin();
                 render();
@@ -841,7 +869,7 @@
         }
 
         function deleteSlide() {
-            if (appState.slides.length > 1 && confirm("Excluir este slide permanentemente?")) {
+            if (appState.slides.length > 1 && confirm("Excluir slide?")) {
                 appState.slides.splice(appState.currentSlide, 1);
                 loadSlide(0);
                 triggerAutoSave();
@@ -852,8 +880,8 @@
             const nav = document.getElementById('slide-nav');
             if (!nav) return;
             nav.innerHTML = appState.slides.map((_, i) => `
-                <div class="slide-thumb ${i === appState.currentSlide ? 'active' : ''}" onclick="loadSlide(${i})">Slide ${i+1}</div>
-            `).join('');
+            <div class="slide-thumb ${i === appState.currentSlide ? 'active' : ''}" onclick="loadSlide(${i})">Slide ${i+1}</div>
+        `).join('');
         }
 
         function toggleAdmin() {
@@ -875,11 +903,8 @@
             const h = document.getElementById('selector-highlight');
             const img = document.getElementById('preview-principal');
             if (!s || !s.lista || !s.lista.length) return;
-
             if (appState.activeItemIdx >= s.lista.length) appState.activeItemIdx = 0;
-
             if (h) h.style.transform = `translateY(${appState.activeItemIdx * 72}px)`;
-
             if (img) {
                 img.style.opacity = '0';
                 setTimeout(() => {
@@ -890,10 +915,9 @@
         }
 
         function changeDevicePrompt() {
-            const id = prompt("Digite o ID da TV de destino:", appState.deviceId);
+            const id = prompt("ID da TV:", appState.deviceId);
             if (id) {
                 appState.deviceId = id;
-                document.getElementById('display-device-id').innerText = id;
                 init();
             }
         }
@@ -906,20 +930,15 @@
         auth.onAuthStateChanged(user => {
             appState.currentUser = user;
             if (user) appState.ownerUid = user.uid;
-
-            const dot = document.getElementById('status-dot');
-            if (dot) dot.classList.toggle('online', !!user);
-
-            const display = document.getElementById('user-display');
-            if (display) display.innerText = user ? user.email : "Desconectado";
-
-            const btn = document.getElementById('auth-btn');
-            if (btn) btn.innerText = user ? "Sair" : "Login";
-
+            document.getElementById('status-dot').classList.toggle('online', !!user);
+            document.getElementById('user-display').innerText = user ? user.email : "Desconectado";
+            document.getElementById('auth-btn').innerText = user ? "Sair" : "Login";
             init();
         });
 
-        window.onload = init;
+        window.onload = () => {
+            if (!appState.currentUser) init();
+        };
     </script>
 </body>
 
